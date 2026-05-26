@@ -36,7 +36,5 @@ USER app
 # Railway injects PORT at runtime. The app reads it via server.port=${PORT:8080}.
 EXPOSE 8080
 
-ENV JAVA_OPTS=""
-
 # Use exec form so the JVM receives signals (graceful shutdown on Railway redeploy).
-ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar /app/app.jar"]
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
