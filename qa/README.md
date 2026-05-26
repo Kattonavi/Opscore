@@ -102,3 +102,100 @@ http://localhost:9323
 ```
 
 <h3 align="center">¡Listo! ya puedes visualizar el reporte de los Test 🥳</h3>
+
+---
+
+## Fase 4 — Suite E2E reorganizada
+
+A partir de la Fase 4 la suite se divide en dos proyectos Playwright:
+
+| Proyecto | Specs | Driver | Requiere navegador |
+|---|---|---|---|
+| `api` | `login.spec.ts`, `incidents.spec.ts`, `users.spec.ts`, `incident-workflow.api.spec.ts`, `incident-rbac.api.spec.ts` | HTTP via `request` | ❌ |
+| `ui`  | `session-isolation.ui.spec.ts` | navegador | ✅ (`npm run install:browsers`) |
+
+### Variables de entorno
+
+Ver `qa/.env.example` para la lista completa. Las críticas son:
+
+| Variable | Default | Uso |
+|---|---|---|
+| `E2E_API_URL`     | `http://localhost:8080` | baseURL de tests API |
+| `E2E_BASE_URL`    | `http://localhost:3000` | baseURL de tests UI |
+| `E2E_ADMIN_EMAIL` | `admin@opscore.com` | login de admin |
+| `E2E_ADMIN_PASSWORD` | `abcd1234` | password del seeder |
+| `E2E_ROLE_ID_*`   | 1..5 | IDs del seed |
+
+Los aliases legacy (`API_BASE_URL`, `API_ADMIN_EMAIL`, `API_ADMIN_PASSWORD`)
+siguen funcionando.
+
+### Bootstrapping de usuarios
+
+Las specs nuevas crean (o reutilizan) usuarios deterministas a partir del
+admin en su `beforeAll`:
+
+```
+e2e-manager@opscore.local
+e2e-supervisor@opscore.local
+e2e-technician@opscore.local
+e2e-operator@opscore.local
+```
+
+Password compartido: `E2eTest1234!` (sólo en `helpers/env.ts`, nunca persistido).
+
+Si querés usar usuarios pre-existentes, exportá `E2E_<ROLE>_EMAIL` y
+`E2E_<ROLE>_PASSWORD` antes de correr.
+
+### Comandos
+
+```bash
+# Listar tests sin ejecutarlos (smoke):
+npx playwright test --list
+
+# Sólo el proyecto API (no requiere navegador):
+npx playwright test --project=api
+
+# Sólo el proyecto UI (requiere instalar navegadores primero):
+npm run install:browsers
+npx playwright test --project=ui
+
+# Una spec en particular:
+npx playwright test tests/incident-workflow.api.spec.ts
+
+# Modo UI interactivo:
+npx playwright test --ui
+
+# Reporte HTML:
+npx playwright show-report
+```
+
+### Apuntar a Railway
+
+Linux / macOS:
+```bash
+E2E_API_URL=https://opscore-api.up.railway.app \
+E2E_BASE_URL=https://opscore-frontend.up.railway.app \
+npm test
+```
+
+Windows PowerShell:
+```powershell
+$env:E2E_API_URL="https://opscore-api.up.railway.app"
+$env:E2E_BASE_URL="https://opscore-frontend.up.railway.app"
+npm test
+```
+
+### Datos de prueba y limpieza
+
+- Los incidentes E2E se prefijan con `E2E - ` para identificarlos.
+- Los usuarios E2E usan dominio `@opscore.local` con prefijo `e2e-<rol>`.
+- **No hay endpoint de limpieza automático.** Si necesitás limpiar el
+  entorno periódicamente, hacelo con `psql`:
+  ```sql
+  DELETE FROM incident_logs WHERE incident_id IN (SELECT id FROM incidents WHERE title LIKE 'E2E - %');
+  DELETE FROM assignments   WHERE incident_id IN (SELECT id FROM incidents WHERE title LIKE 'E2E - %');
+  DELETE FROM incidents     WHERE title LIKE 'E2E - %';
+  DELETE FROM users         WHERE email LIKE 'e2e-%@opscore.local';
+  ```
+
+Ver `qa/docs/e2e.md` para la guía completa.

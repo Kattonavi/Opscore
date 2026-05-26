@@ -53,18 +53,37 @@ test.describe('Endpoints de incidentes', () => {
     expect(Array.isArray(assignments)).toBe(true);
   });
 
-  test('admin puede resolver un incidente', async ({ request }) => {
+  test('admin puede resolver un incidente respetando la state machine', async ({ request }) => {
+    // Fase 2 enforces OPEN → ASSIGNED → IN_PROGRESS → RESOLVED. Driving an
+    // incident straight from OPEN to RESOLVED is rejected with 409 now,
+    // so the test walks the full happy path before asserting RESOLVED.
     const token = await login(request);
+    const technician = await createRandomUser(request, token, 'TECHNICIAN');
     const incident = await createIncident(request, token);
 
+    const assignResp = await request.post(`/incidents/${incident.id}/assign`, {
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      data: { assignedToId: technician.id },
+    });
+    expect(assignResp.status()).toBe(200);
+
+    const technicianLogin = await request.post('/auth/login', {
+      headers: { 'Content-Type': 'application/json' },
+      data: { email: technician.email, password: technician.password },
+    });
+    expect(technicianLogin.status()).toBe(200);
+    const technicianToken = (await technicianLogin.json()).token as string;
+
+    const startResp = await request.patch(`/incidents/${incident.id}/start`, {
+      headers: { Authorization: `Bearer ${technicianToken}`, 'Content-Type': 'application/json' },
+      data: { comment: 'Iniciado por QA' },
+    });
+    expect(startResp.status()).toBe(200);
+
     const resolveResponse = await request.patch(`/incidents/${incident.id}/resolve`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+      headers: { Authorization: `Bearer ${technicianToken}`, 'Content-Type': 'application/json' },
       data: { comment: 'Resuelto por QA' },
     });
-
     expect(resolveResponse.status()).toBe(200);
     const resolved = await resolveResponse.json();
     expect(resolved.status).toBe('RESOLVED');

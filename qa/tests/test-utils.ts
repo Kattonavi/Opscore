@@ -1,51 +1,19 @@
-import { APIRequestContext, expect } from '@playwright/test';
+// Legacy shim — kept so the pre-Fase-4 specs keep compiling against the
+// new helper layout under `helpers/`. New specs should import from
+// `./helpers/*` directly.
 
-// ─── Credentials ──────────────────────────────────────────────────────
-//
-// The backend authenticates by EMAIL (not username) and stores BCrypt
-// passwords. The seed/demo users are managed outside of automated tests.
-// Override the defaults via environment variables when running CI:
-//
-//   API_ADMIN_EMAIL=admin@opscore.com
-//   API_ADMIN_PASSWORD=abcd1234
-//
-// If no admin user exists yet, see docs/deployment-railway.md for the
-// initial-seed procedure.
+import type { APIRequestContext } from '@playwright/test';
+import { expect } from '@playwright/test';
+import { apiLogin } from './helpers/auth';
+import { ADMIN, ROLE_IDS as ROLE_IDS_NEW, type RoleName as RoleNameNew } from './helpers/env';
+import { createIncident as createIncidentHelper } from './helpers/incidents';
 
-export const adminCredentials = {
-  email: process.env.API_ADMIN_EMAIL || 'admin@opscore.com',
-  password: process.env.API_ADMIN_PASSWORD || 'abcd1234',
-};
+export const adminCredentials = ADMIN;
+export const ROLE_IDS = ROLE_IDS_NEW;
+export type RoleName = RoleNameNew;
 
-// Role IDs map to rows in the `roles` table. They must exist before the
-// tests run. Override via env if your seed differs.
-export const ROLE_IDS = {
-  ADMIN: Number(process.env.API_ROLE_ID_ADMIN || 1),
-  MANAGER: Number(process.env.API_ROLE_ID_MANAGER || 2),
-  SUPERVISOR: Number(process.env.API_ROLE_ID_SUPERVISOR || 3),
-  TECHNICIAN: Number(process.env.API_ROLE_ID_TECHNICIAN || 4),
-  OPERATOR: Number(process.env.API_ROLE_ID_OPERATOR || 5),
-} as const;
-
-export type RoleName = keyof typeof ROLE_IDS;
-
-export async function login(request: APIRequestContext, credentials = adminCredentials) {
-  const response = await request.post('/auth/login', {
-    headers: { 'Content-Type': 'application/json' },
-    data: credentials,
-  });
-
-  if (response.status() !== 200) {
-    const body = await response.text();
-    throw new Error(
-      `Login failed for ${credentials.email}: ${response.status()} ${body}`
-    );
-  }
-
-  const body = await response.json();
-  expect(body).toHaveProperty('token');
-  expect(typeof body.token).toBe('string');
-  return body.token as string;
+export function login(request: APIRequestContext, credentials = adminCredentials) {
+  return apiLogin(request, credentials);
 }
 
 export function randomEmail(prefix = 'user') {
@@ -89,31 +57,8 @@ export async function createRandomUser(
   };
 }
 
+/** Back-compat wrapper that returns the same shape the legacy specs
+ *  expected. The new helpers in `helpers/incidents.ts` are typed. */
 export async function createIncident(request: APIRequestContext, token: string) {
-  const payload = {
-    title: `Falla ${Date.now()}`,
-    description: 'La maquina dejo de funcionar y necesita mantenimiento urgente.',
-    type: 'MACHINE_FAILURE',
-    priority: 'HIGH',
-  };
-
-  const response = await request.post('/incidents', {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    data: payload,
-  });
-
-  expect(response.status()).toBe(201);
-  const incident = await response.json();
-  expect(incident).toMatchObject({
-    title: payload.title,
-    description: payload.description,
-    priority: payload.priority,
-    type: payload.type,
-  });
-  expect(incident.id).toBeTruthy();
-
-  return incident;
+  return createIncidentHelper(request, token);
 }
