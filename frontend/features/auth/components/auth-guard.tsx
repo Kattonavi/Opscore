@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
+import { clearOtherStores } from "@/lib/stores-reset";
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -36,6 +37,11 @@ export function AuthGuard({ children }: AuthGuardProps) {
 
   useEffect(() => {
     if (hydrated && !token) {
+      // Defensive cleanup: if we reached a protected route after hydration
+      // with no token, any per-user data still sitting in memory belongs
+      // to a previous session. Wipe it before navigating away so the
+      // login page can never reveal stale data through a back-button.
+      clearOtherStores();
       router.replace("/login");
     }
   }, [hydrated, token, router]);

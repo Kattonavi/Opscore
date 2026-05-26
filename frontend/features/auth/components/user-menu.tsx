@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuthStore } from "@/features/auth/stores/auth-store";
+import { clearSessionState } from "@/lib/session-reset";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,11 +18,14 @@ import { LogOut, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 export function UserMenu() {
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
   const router = useRouter();
 
   const handleLogout = () => {
-    logout();
+    // Centralised teardown: clears auth + every per-user store + the
+    // sensitive localStorage keys (token, legacy persisted blobs).
+    // Preserves theme, language and API base URL preferences.
+    clearSessionState();
     router.push("/login");
   };
 

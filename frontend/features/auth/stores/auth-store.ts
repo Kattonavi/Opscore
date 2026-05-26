@@ -5,6 +5,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import { authApi } from "@/api/auth";
 import { usersApi } from "@/api/user";
 import type { LoginRequestDTO, UserResponseDTO } from "@/api/types";
+import { clearOtherStores } from "@/lib/stores-reset";
 
 // Versión del store - incrementar cuando cambie la estructura
 const STORE_VERSION = 1;
@@ -36,6 +37,11 @@ export const useAuthStore = create<AuthState>()(
       error: null,
 
       login: async (credentials: LoginRequestDTO) => {
+        // Capture the previously authenticated user (if any) BEFORE the
+        // request fires, so we can detect a user-change and wipe stale
+        // per-user stores before the new session takes over.
+        const previousUserId = get().user?.id ?? null;
+
         set({ loading: true, error: null });
         try {
           const response = await authApi.login(credentials);
@@ -50,6 +56,19 @@ export const useAuthStore = create<AuthState>()(
             console.log("[AuthStore] User fetched:", currentUser);
           } catch (e) {
             console.error("Error fetching user data:", e);
+          }
+
+          // If the previous session belonged to a different user, scrub
+          // their per-user data out of every other store BEFORE the new
+          // user becomes the authenticated identity. This is what prevents
+          // a TECHNICIAN/OPERATOR from seeing a MANAGER's cached list for
+          // even a frame.
+          if (
+            currentUser &&
+            previousUserId !== null &&
+            previousUserId !== currentUser.id
+          ) {
+            clearOtherStores();
           }
 
           set({
@@ -76,13 +95,20 @@ export const useAuthStore = create<AuthState>()(
       },
 
       logout: () => {
+        // Remove the JWT from the localStorage mirror used by the Axios
+        // interceptor. The Zustand persist middleware will rewrite the
+        // serialised blob on the next tick with the cleared state below.
         authApi.removeToken();
         set({
           isAuthenticated: false,
           user: null,
           token: null,
+          loading: false,
           error: null,
         });
+        // Per-user stores (incidents, …) are cleared by `clearSessionState`
+        // which calls this method first. Calling `clearOtherStores` from
+        // here would create a circular import with `lib/session-reset`.
       },
 
       clearError: () => {
@@ -114,7 +140,10 @@ export const useAuthStore = create<AuthState>()(
         version: state.version,
         isAuthenticated: state.isAuthenticated,
         token: state.token,
-        user: state.user,
+        // `user` is intentionally NOT persisted: it must be re-fetched
+        // from /users/me after hydration so the displayed identity is
+        // always proven by the current token, not by a leftover cache
+        // from a previous session.
       }),
       // Migrate old stores without version
       migrate: (

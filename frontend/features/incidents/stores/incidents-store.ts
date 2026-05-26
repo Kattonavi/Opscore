@@ -1,7 +1,6 @@
 "use client";
 
 import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 import { incidentsApi } from "@/api/incidents";
 import type {
   IncidentResponseDTO,
@@ -10,6 +9,11 @@ import type {
   Priority,
   IncidentType,
 } from "@/api/incidents/types";
+
+// The incidents list is intentionally NOT persisted across sessions. Each
+// authenticated session must fetch a fresh, server-filtered list, so that a
+// user logging in after another user never sees stale incidents that
+// belonged to a different role.
 
 interface IncidentsState {
   incidents: IncidentResponseDTO[];
@@ -20,6 +24,9 @@ interface IncidentsState {
   fetchIncidents: () => Promise<void>;
   createIncident: (data: IncidentRequestDTO) => Promise<IncidentResponseDTO>;
   resolveIncident: (id: number, comment?: string) => Promise<void>;
+  /** Clear in-memory list, loading flag and error. Used on logout / login
+   *  transitions to prevent data leaks between users. */
+  reset: () => void;
 
   // Computed
   getIncidentsByStatus: (status: IncidentStatus) => IncidentResponseDTO[];
@@ -41,11 +48,12 @@ export interface IncidentStats {
 }
 
 export const useIncidentsStore = create<IncidentsState>()(
-  persist(
     (set, get) => ({
       incidents: [],
       loading: false,
       error: null,
+
+      reset: () => set({ incidents: [], loading: false, error: null }),
 
       fetchIncidents: async () => {
         set({ loading: true, error: null });
@@ -192,12 +200,4 @@ export const useIncidentsStore = create<IncidentsState>()(
         };
       },
     }),
-    {
-      name: "opscore-incidents-storage",
-      storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        incidents: state.incidents,
-      }),
-    },
-  ),
 );
