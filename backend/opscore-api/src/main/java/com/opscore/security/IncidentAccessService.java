@@ -72,6 +72,44 @@ public class IncidentAccessService {
         }
     }
 
+    /**
+     * Area-scoped assignment rule applied <b>after</b>
+     * {@link #assertCanAssignIncident(User)}.
+     *
+     * <ul>
+     *   <li>ADMIN and MANAGER may assign to any active technician.</li>
+     *   <li>SUPERVISOR may only assign to technicians within their own
+     *       area. If the supervisor has no area, or the technician has no
+     *       area, or the areas differ, the call is rejected with 403.</li>
+     *   <li>Any other role is rejected.</li>
+     * </ul>
+     *
+     * The "active technician" check is intentionally not performed here —
+     * {@code UserRepository.findByActiveTrueAndRoleNameIn(["TECHNICIAN"])}
+     * already drives the assignable list. This guard is the server-side
+     * counterpart of the frontend area filter in
+     * {@code incidentes/[id]/page.tsx}.
+     */
+    public void assertCanAssignToTechnician(User assigner, User technician) {
+        if (assigner == null || technician == null) {
+            throwForbidden();
+        }
+        if (hasRole(assigner, ADMIN, MANAGER)) {
+            return;
+        }
+        if (!hasRole(assigner, SUPERVISOR)) {
+            throwForbidden();
+        }
+        // SUPERVISOR scope: same area only.
+        if (assigner.getArea() == null
+                || technician.getArea() == null
+                || !assigner.getArea().getId().equals(technician.getArea().getId())) {
+            throw new AccessDeniedException(
+                    "SUPERVISOR can only assign technicians from their own area"
+            );
+        }
+    }
+
     public void assertCanResolveIncident(User user, Incident incident) {
         if (!canResolveIncident(user, incident)) {
             throwForbidden();

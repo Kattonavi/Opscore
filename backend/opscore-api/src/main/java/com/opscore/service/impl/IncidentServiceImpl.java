@@ -10,7 +10,7 @@ import com.opscore.entity.User;
 import com.opscore.enums.IncidentAction;
 import com.opscore.enums.IncidentStatus;
 import com.opscore.enums.Priority;
-import com.opscore.exception.BadRequestException;
+import com.opscore.exception.ConflictException;
 import com.opscore.exception.ResourceNotFoundException;
 import com.opscore.repository.AreaRepository;
 import com.opscore.repository.AssignmentRepository;
@@ -238,11 +238,8 @@ public class IncidentServiceImpl implements IncidentService {
         User currentUser = getCurrentAuthenticatedUser();
         incidentAccessService.assertCanResolveIncident(currentUser, incident);
 
-        // Regla: no resolver incidente ya cerrado
-        if (incident.getStatus() == IncidentStatus.CLOSED) {
-            throw new BadRequestException(
-                    "Cannot resolve a CLOSED incident");
-        }
+        // State machine: only IN_PROGRESS → RESOLVED is allowed.
+        IncidentTransitions.assertAllowed(incident.getStatus(), IncidentStatus.RESOLVED);
 
         incident.setStatus(IncidentStatus.RESOLVED);
         incident.setResolvedAt(LocalDateTime.now());
@@ -271,12 +268,8 @@ public class IncidentServiceImpl implements IncidentService {
         User currentUser = getCurrentAuthenticatedUser();
         incidentAccessService.assertCanResolveIncident(currentUser, incident);
 
-        if (   incident.getStatus() != IncidentStatus.ASSIGNED &&
-               incident.getStatus() != IncidentStatus.ON_HOLD
-        ) {
-            throw new BadRequestException(
-                    "Only ASSIGNED or ON_HOLD incidents can be started");
-        }
+        // State machine: ASSIGNED or ON_HOLD → IN_PROGRESS.
+        IncidentTransitions.assertAllowed(incident.getStatus(), IncidentStatus.IN_PROGRESS);
 
         incident.setStatus(IncidentStatus.IN_PROGRESS);
         incident.setUpdatedBy(currentUser.getEmail());
@@ -303,10 +296,8 @@ public class IncidentServiceImpl implements IncidentService {
         User currentUser = getCurrentAuthenticatedUser();
         incidentAccessService.assertCanResolveIncident(currentUser, incident);
 
-        if (incident.getStatus() != IncidentStatus.IN_PROGRESS) {
-            throw new BadRequestException(
-                    "Only IN_PROGRESS incidents can be put on hold");
-        }
+        // State machine: only IN_PROGRESS → ON_HOLD.
+        IncidentTransitions.assertAllowed(incident.getStatus(), IncidentStatus.ON_HOLD);
 
         incident.setStatus(IncidentStatus.ON_HOLD);
         incident.setUpdatedBy(currentUser.getEmail());
@@ -333,17 +324,12 @@ public class IncidentServiceImpl implements IncidentService {
         User currentUser = getCurrentAuthenticatedUser();
         incidentAccessService.assertCanCancelIncident(currentUser, incident);
 
-        if (
-                incident.getStatus() == IncidentStatus.CLOSED ||
-                        incident.getStatus() == IncidentStatus.RESOLVED
-        ) {
-            throw new BadRequestException(
-                    "Cannot cancel resolved or closed incidents");
-        }
+        // State machine: cancel allowed from OPEN / ASSIGNED / IN_PROGRESS / ON_HOLD
+        // — terminal states (CLOSED, CANCELED) and RESOLVED reject the transition.
+        IncidentTransitions.assertAllowed(incident.getStatus(), IncidentStatus.CANCELED);
 
         incident.setStatus(IncidentStatus.CANCELED);
         incident.setUpdatedBy(currentUser.getEmail());
-
 
         Incident updatedIncident = incidentRepository.save(incident);
 
@@ -367,10 +353,8 @@ public class IncidentServiceImpl implements IncidentService {
         User currentUser = getCurrentAuthenticatedUser();
         incidentAccessService.assertCanCloseIncident(currentUser, incident);
 
-        if (incident.getStatus() != IncidentStatus.RESOLVED) {
-            throw new BadRequestException(
-                    "Only RESOLVED incidents can be closed");
-        }
+        // State machine: only RESOLVED → CLOSED.
+        IncidentTransitions.assertAllowed(incident.getStatus(), IncidentStatus.CLOSED);
 
         incident.setStatus(IncidentStatus.CLOSED);
         incident.setUpdatedBy(currentUser.getEmail());
