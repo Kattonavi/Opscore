@@ -1,0 +1,50 @@
+[
+  {
+    "id": "priority-001",
+    "name": "Baja",
+    "description": "No afecta producción inmediata",
+    "icon": "ArrowDown",
+    "color": "#3b82f6",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "id": "priority-002",
+    "name": "Media",
+    "description": "Afecta parcialmente la producción",
+    "icon": "Minus",
+    "color": "#eab308",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "id": "priority-003",
+    "name": "Alta",
+    "description": "Afecta producción significativamente",
+    "icon": "ArrowUp",
+    "color": "#f97316",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "id": "priority-004",
+    "name": "Crítica",
+    "description": "Detiene producción completamente",
+    "icon": "AlertTriangle",
+    "color": "#ef4444",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]

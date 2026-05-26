@@ -1,0 +1,38 @@
+[
+  {
+    "id": "rol-001",
+    "name": "Gerente",
+    "description": "Gerente de planta con acceso completo",
+    "icon": "Shield",
+    "color": "#8b5cf6",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "id": "rol-002",
+    "name": "Supervisor",
+    "description": "Supervisor de área con permisos de asignación",
+    "icon": "UserCheck",
+    "color": "#3b82f6",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "id": "rol-003",
+    "name": "Operario",
+    "description": "Operario de línea de producción",
+    "icon": "User",
+    "color": "#22c55e",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]

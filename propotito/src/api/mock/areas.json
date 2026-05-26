@@ -1,0 +1,62 @@
+[
+  {
+    "id": "area-001",
+    "name": "Producción",
+    "description": "Líneas de producción principal",
+    "icon": "Factory",
+    "color": "#3b82f6",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "id": "area-002",
+    "name": "Mantenimiento",
+    "description": "Mantenimiento de equipos y maquinaria",
+    "icon": "Wrench",
+    "color": "#f59e0b",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "id": "area-003",
+    "name": "Calidad",
+    "description": "Control de calidad del producto",
+    "icon": "CheckCircle",
+    "color": "#22c55e",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "id": "area-004",
+    "name": "Seguridad",
+    "description": "Seguridad industrial",
+    "icon": "Shield",
+    "color": "#ef4444",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "id": "area-005",
+    "name": "Logística",
+    "description": "Almacén y distribución",
+    "icon": "Package",
+    "color": "#8b5cf6",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]

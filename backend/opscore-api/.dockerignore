@@ -1,0 +1,14 @@
+target
+.idea
+.vscode
+*.iml
+*.log
+backend.log
+.git
+.gitignore
+.DS_Store
+README.md
+Manual de Instalacion.md
+OpsCore.postman_collection.json
+.env
+.env.*

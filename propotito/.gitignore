@@ -1,0 +1,34 @@
+# IntelliJ
+.idea/
+*.iml
+
+# VSCode
+.vscode/
+
+# Logs
+logs/
+*.log
+
+# Maven
+target/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules
+
+# Environment
+.env
+!*.env.*
+
+# Backup
+.backup
+
+# skill registry
+.atl/*
+
+# Next.js
+.next/
+out/

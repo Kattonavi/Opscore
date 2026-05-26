@@ -1,0 +1,18 @@
+package com.opscore.dto;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AreaResponseDTO {
+    private Long id;
+    private String name;
+    private String description;
+    private String color;
+    private long incidentCount;
+}

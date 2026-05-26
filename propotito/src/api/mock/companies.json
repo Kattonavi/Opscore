@@ -1,0 +1,13 @@
+[
+  {
+    "id": "comp-001",
+    "name": "OpsCore Industrial",
+    "logo": "https://api.dicebear.com/7.x/shapes/svg?seed=OpsCore",
+    "description": "Planta industrial con 400 operarios",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]

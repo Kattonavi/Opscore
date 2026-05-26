@@ -1,0 +1,28 @@
+{
+  "name": "testing-opscore-qa",
+  "version": "1.0.0",
+  "description": "Pruebas E2E/API de OpsCore con Playwright.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "install:browsers": "npx playwright install --with-deps",
+    "test": "npx playwright test",
+    "test:local": "cross-env API_BASE_URL=http://localhost:8080 npx playwright test",
+    "test:staging": "npx playwright test",
+    "report": "npx playwright show-report"
+  },
+  "keywords": [
+    "playwright",
+    "qa",
+    "e2e"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@types/node": "^22.10.0",
+    "cross-env": "^7.0.3"
+  }
+}

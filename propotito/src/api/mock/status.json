@@ -1,0 +1,38 @@
+[
+  {
+    "id": "status-001",
+    "name": "Abierto",
+    "description": "Incidente reportado, pendiente de asignación",
+    "icon": "AlertTriangle",
+    "color": "#ef4444",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "id": "status-002",
+    "name": "En Proceso",
+    "description": "Incidente asignado, en resolución",
+    "icon": "Clock",
+    "color": "#eab308",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  },
+  {
+    "id": "status-003",
+    "name": "Cerrado",
+    "description": "Incidente resuelto y cerrado",
+    "icon": "CheckCircle2",
+    "color": "#22c55e",
+    "is_active": true,
+    "created_by": "system",
+    "updated_by": "system",
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+]
