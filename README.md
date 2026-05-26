@@ -168,26 +168,38 @@ The Swagger UI (dev/staging only) exposes the full catalogue at `/swagger-ui/ind
 
 ## Email Status
 
-> ⚠️ **OpsCore does not send real emails today.**
+Welcome emails are **implemented and ready to deliver via SMTP**, but the feature is **opt-in** so the application boots cleanly in environments without an SMTP provider.
 
-The `WelcomeEmailService` is implemented as a **log-only stub**. When a user is created through `POST /users`, the service writes a structured `INFO` log entry but **no SMTP message is dispatched**. This is by design: it provides a clean integration hook without forcing an SMTP setup in every environment.
+- The classpath includes `spring-boot-starter-mail`; [`WelcomeEmailService`](backend/opscore-api/src/main/java/com/opscore/service/WelcomeEmailService.java) uses Spring's auto-configured `JavaMailSender` and sends a plain-text `SimpleMailMessage`.
+- **By default `opscore.mail.enabled=false`** — the service logs an `INFO` line per account creation and does not contact any SMTP server.
+- **Set `OPSCORE_MAIL_ENABLED=true`** plus the SMTP variables below to activate real delivery.
+- User creation wraps the email call in a `try/catch`; any SMTP failure (auth error, timeout, bad host) is logged at `WARN` level and **never** breaks `POST /users`.
 
-To enable real email delivery, the operator needs to:
-
-1. Add the dependency `spring-boot-starter-mail` to [`backend/opscore-api/pom.xml`](backend/opscore-api/pom.xml).
-2. Replace the placeholder branch in [`WelcomeEmailService.sendWelcomeEmail`](backend/opscore-api/src/main/java/com/opscore/service/WelcomeEmailService.java) with a real `JavaMailSender.send(...)` call.
-3. Provide the SMTP configuration via environment variables:
+### Required environment variables (when enabling)
 
 | Variable | Purpose |
 |---|---|
-| `SMTP_HOST` | SMTP server hostname |
-| `SMTP_PORT` | SMTP server port (e.g. 587) |
+| `OPSCORE_MAIL_ENABLED` | `true` to actually send; `false` (default) keeps the log-only behaviour |
+| `SMTP_HOST` | SMTP server hostname (e.g. `smtp.gmail.com`, `smtp.sendgrid.net`) |
+| `SMTP_PORT` | SMTP server port — STARTTLS defaults to `587` |
 | `SMTP_USERNAME` | SMTP auth user |
-| `SMTP_PASSWORD` | SMTP auth password / app password |
-| `MAIL_FROM` | Default sender address |
-| `opscore.mail.enabled=true` | Application-level flag that activates the real-send branch |
+| `SMTP_PASSWORD` | SMTP auth password or app-specific password |
+| `MAIL_FROM` | Sender address used in the `From:` header |
 
-User creation already wraps the email call in a `try/catch`, so a future SMTP outage will never block account provisioning — failures are logged at WARN level only.
+The application sets STARTTLS-required defaults appropriate for ports `587`/`2525`. To use implicit TLS on `465` instead, override these properties:
+
+```properties
+spring.mail.properties.mail.smtp.ssl.enable=true
+spring.mail.properties.mail.smtp.starttls.enable=false
+spring.mail.properties.mail.smtp.starttls.required=false
+```
+
+### Security guarantees
+
+- **The welcome email never includes the user's password.** Credentials are expected to reach the user through whichever out-of-band channel the administrator chooses.
+- **No PII beyond the recipient's own name and email** is embedded in the body.
+- **SMTP credentials are read from env, never logged.**
+- **A failed send never aborts user creation** — the account is already persisted by the time the send is attempted.
 
 ## Quality Assurance
 
@@ -285,7 +297,7 @@ The project is delivered by a cross-functional team of frontend, backend and QA 
 
 The following items are explicitly **out of scope for the current iteration** and are recorded here so they are not mistaken for working features:
 
-- **Email delivery is not active.** `WelcomeEmailService` only writes log entries; integrating Spring Boot Mail + SMTP is required to send real welcome / notification emails (see [Email Status](#email-status)).
+- **Email delivery is opt-in.** Real SMTP delivery is wired and ready, but disabled by default. Set `OPSCORE_MAIL_ENABLED=true` plus the `SMTP_*` env vars to activate it (see [Email Status](#email-status)).
 - **Root-cause analysis module is basic.** Incidents capture title, description, type, priority and timeline annotations, but a structured RCA workflow (5-whys, fishbone, etc.) is **not** implemented yet.
 - **File attachments are not implemented.** There is no upload pipeline for incident photos or documents. No Cloudinary / S3 / object-storage integration is wired in.
 - **Schema migrations are managed by Hibernate `ddl-auto`** (`update` in dev, `validate` in prod). Flyway or Liquibase integration is **not** yet in place, so production deploys still rely on manual DDL coordination.
@@ -298,7 +310,7 @@ The following items are explicitly **out of scope for the current iteration** an
 
 Recommended follow-up work, ordered roughly by business value vs. effort:
 
-1. **Wire real SMTP delivery** in `WelcomeEmailService` once the operator chooses an email provider — minimal code change, environment-only configuration.
+1. **Activate SMTP delivery in production** by setting `OPSCORE_MAIL_ENABLED=true` and the `SMTP_*` env vars on Railway once the operator chooses a provider (SendGrid, Postmark, AWS SES, etc.) — no code change needed.
 2. **Adopt Flyway** (or Liquibase) and switch the production profile to `ddl-auto=validate` definitively, with versioned migrations under `backend/opscore-api/src/main/resources/db/migration/`.
 3. **Introduce a user-administration audit log** (role change, status change, admin password reset) — new entity + service hook in `UserService`.
 4. **Run the full Playwright suite in CI** against a deployed staging environment, not just `--list`.

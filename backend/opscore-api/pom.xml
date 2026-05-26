@@ -57,6 +57,17 @@
 			<artifactId>spring-boot-starter-actuator</artifactId>
 		</dependency>
 
+		<!--
+			Mail support. Auto-configures JavaMailSender from spring.mail.*
+			properties. Wiring is OPTIONAL: WelcomeEmailService accepts a
+			ObjectProvider<JavaMailSender>, so the app boots even if SMTP
+			is not configured. Activation is gated by opscore.mail.enabled.
+		-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
