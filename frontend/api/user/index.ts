@@ -7,6 +7,8 @@ import type {
   UpdateUserRoleDTO,
   UpdateUserStatusDTO,
   ChangePasswordDTO,
+  UpdateMeRequestDTO,
+  AdminChangePasswordDTO,
 } from "@/api/types";
 
 export type {
@@ -15,6 +17,8 @@ export type {
   UpdateUserRoleDTO,
   UpdateUserStatusDTO,
   ChangePasswordDTO,
+  UpdateMeRequestDTO,
+  AdminChangePasswordDTO,
 } from "@/api/types";
 
 export const usersApi = {
@@ -48,6 +52,14 @@ export const usersApi = {
     return data;
   },
 
+  /** PATCH /users/me — update own firstName/lastName */
+  updateMe: async (
+    payload: UpdateMeRequestDTO,
+  ): Promise<UserResponseDTO> => {
+    const { data } = await apiClient.patch("/users/me", payload);
+    return data;
+  },
+
   /** PATCH /users/{id}/role — requires ADMIN */
   updateRole: async (
     id: number,
@@ -66,8 +78,20 @@ export const usersApi = {
     return data;
   },
 
-  /** PATCH /users/change-password */
+  /** PATCH /users/change-password — self-service */
   changePassword: async (payload: ChangePasswordDTO): Promise<void> => {
     await apiClient.patch("/users/change-password", payload);
+  },
+
+  /**
+   * PATCH /users/{userId}/change-password — admin/supervisor reset.
+   * Requires ADMIN or SUPERVISOR (supervisors are restricted to their
+   * own area on the backend).
+   */
+  adminChangePassword: async (
+    userId: number,
+    payload: AdminChangePasswordDTO,
+  ): Promise<void> => {
+    await apiClient.patch(`/users/${userId}/change-password`, payload);
   },
 };

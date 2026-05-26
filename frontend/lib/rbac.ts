@@ -213,6 +213,17 @@ export function isIncidentManagerRole(
   );
 }
 
+/**
+ * Whether the given role is allowed to <b>create</b> an incident.
+ * Mirrors the backend rule: only OPERATOR can submit
+ * <code>POST /incidents</code>.
+ */
+export function canCreateIncident(
+  role: Role | string | null | undefined,
+): boolean {
+  return role === Role.OPERATOR;
+}
+
 /** True when the current TECHNICIAN user is the one assigned to the
  *  incident. Returns false for any other role or when either side is
  *  missing the id. */
@@ -230,13 +241,20 @@ export function isAssignedTechnician(
 
 // ── Per-action helpers ────────────────────────────────────────────
 
-/** Assign / Reassign: managers, while the incident is still actionable. */
+/** Assign / Reassign: managers, while the incident is still actionable.
+ *  Mirrors the backend rule in `AssignmentService#assignIncident`: terminal
+ *  states (CLOSED, CANCELED) and RESOLVED reject reassignment — a resolved
+ *  incident must be closed or cancelled before going back to a technician. */
 export function canAssignIncident(
   role: Role | string | null | undefined,
   status: IncidentStatusName | string | null | undefined,
 ): boolean {
   if (!isIncidentManagerRole(role)) return false;
-  return status !== "CLOSED" && status !== "CANCELED";
+  return (
+    status !== "CLOSED" &&
+    status !== "CANCELED" &&
+    status !== "RESOLVED"
+  );
 }
 
 /** Cancel: managers, until the incident is resolved/closed/already cancelled. */

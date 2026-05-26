@@ -41,15 +41,24 @@ public class IncidentAccessService {
         return user != null && incident != null && isAdministrativeRole(user);
     }
 
+    public boolean canCreateIncident(User user) {
+        return user != null && hasRole(user, OPERATOR);
+    }
+
     public boolean canAssignIncident(User user) {
         return isAdministrativeRole(user);
     }
 
+    /**
+     * Technical actions (start / hold / resolve) are limited to the
+     * TECHNICIAN currently assigned to the incident. Administrative roles
+     * cannot perform these "as technician" — they must reassign first
+     * (see the requirements matrix in the user-facing spec).
+     */
     public boolean canResolveIncident(User user, Incident incident) {
-        return isAdministrativeRole(user)
-                || (incident != null
-                        && hasRole(user, TECHNICIAN)
-                        && sameUser(user, incident.getAssignedTo()));
+        return incident != null
+                && hasRole(user, TECHNICIAN)
+                && sameUser(user, incident.getAssignedTo());
     }
 
     public boolean canCloseIncident(User user, Incident incident) {
@@ -62,13 +71,23 @@ public class IncidentAccessService {
 
     public void assertCanViewIncident(User user, Incident incident) {
         if (!canViewIncident(user, incident)) {
-            throwForbidden();
+            throwForbidden("No tienes permiso para ver este incidente.");
+        }
+    }
+
+    public void assertCanCreateIncident(User user) {
+        if (!canCreateIncident(user)) {
+            throw new AccessDeniedException(
+                    "Solo los usuarios con rol operador pueden crear incidentes."
+            );
         }
     }
 
     public void assertCanAssignIncident(User user) {
         if (!canAssignIncident(user)) {
-            throwForbidden();
+            throw new AccessDeniedException(
+                    "No tienes permiso para asignar incidentes."
+            );
         }
     }
 
@@ -92,39 +111,49 @@ public class IncidentAccessService {
      */
     public void assertCanAssignToTechnician(User assigner, User technician) {
         if (assigner == null || technician == null) {
-            throwForbidden();
+            throw new AccessDeniedException(
+                    "No tienes permiso para asignar este incidente."
+            );
         }
         if (hasRole(assigner, ADMIN, MANAGER)) {
             return;
         }
         if (!hasRole(assigner, SUPERVISOR)) {
-            throwForbidden();
+            throw new AccessDeniedException(
+                    "No tienes permiso para asignar este incidente."
+            );
         }
         // SUPERVISOR scope: same area only.
         if (assigner.getArea() == null
                 || technician.getArea() == null
                 || !assigner.getArea().getId().equals(technician.getArea().getId())) {
             throw new AccessDeniedException(
-                    "SUPERVISOR can only assign technicians from their own area"
+                    "Como supervisor solo puedes asignar técnicos de tu misma área."
             );
         }
     }
 
     public void assertCanResolveIncident(User user, Incident incident) {
         if (!canResolveIncident(user, incident)) {
-            throwForbidden();
+            throw new AccessDeniedException(
+                    "No puedes modificar este incidente porque no está asignado a ti."
+            );
         }
     }
 
     public void assertCanCloseIncident(User user, Incident incident) {
         if (!canCloseIncident(user, incident)) {
-            throwForbidden();
+            throw new AccessDeniedException(
+                    "No tienes permiso para cerrar este incidente."
+            );
         }
     }
 
     public void assertCanCancelIncident(User user, Incident incident) {
         if (!canCancelIncident(user, incident)) {
-            throwForbidden();
+            throw new AccessDeniedException(
+                    "No tienes permiso para cancelar este incidente."
+            );
         }
     }
 
@@ -198,7 +227,10 @@ public class IncidentAccessService {
                 && left.getId().equals(right.getId());
     }
 
-    private void throwForbidden() {
-        throw new AccessDeniedException("You do not have permission to access this incident");
+    private void throwForbidden(String message) {
+        throw new AccessDeniedException(
+                message != null ? message
+                                : "No tienes permiso para acceder a este incidente."
+        );
     }
 }

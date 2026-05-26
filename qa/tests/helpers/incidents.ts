@@ -1,6 +1,7 @@
 import type { APIRequestContext } from '@playwright/test';
 import { expect } from '@playwright/test';
 import { authHeaders } from './auth';
+import { ensureUserAndLogin } from './users';
 
 /** Default payload used to create incidents in E2E specs. */
 export interface CreateIncidentInput {
@@ -61,6 +62,38 @@ export async function createIncident(
   const incident = (await response.json()) as IncidentResponse;
   expect(incident.id, 'created incident should have an id').toBeTruthy();
   return incident;
+}
+
+/**
+ * Convenience wrapper that bootstraps (or reuses) a deterministic E2E
+ * OPERATOR account and creates the incident on its behalf. Use this from
+ * specs whose setup needs a "fresh" incident but whose subject is
+ * something other than the creation rule itself (e.g. workflow,
+ * assignment, lifecycle).
+ *
+ * Since business rule #1 restricts <code>POST /incidents</code> to the
+ * OPERATOR role, specs that previously created incidents via the admin
+ * token now go through this helper instead.
+ *
+ * <p>By default the helper bootstraps a <i>secondary</i> operator (area
+ * id 1) so the incident it produces is foreign to the "main" operator
+ * the test scenario sets up via <code>ensureUserAndLogin(..., 'OPERATOR')</code>.
+ * Pass <code>areaId</code> to override.
+ */
+export async function createIncidentViaOperator(
+  request: APIRequestContext,
+  adminToken: string,
+  input: CreateIncidentInput = {},
+  options: { areaId?: number | null } = {},
+): Promise<IncidentResponse> {
+  const operatorAreaId = options.areaId ?? 1;
+  const { token: operatorToken } = await ensureUserAndLogin(
+    request,
+    adminToken,
+    'OPERATOR',
+    operatorAreaId,
+  );
+  return createIncident(request, operatorToken, input);
 }
 
 export async function assignIncident(

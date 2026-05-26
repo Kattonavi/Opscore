@@ -29,6 +29,14 @@ public class IncidentRequestDTO {
 
     private Long areaId;
 
+    // The following three fields are accepted in the request payload for
+    // backwards compatibility with the seed flow, but they are IGNORED on
+    // creation by IncidentServiceImpl#createIncident.
+    //
+    // Rule of business: reportedBy is always the authenticated OPERATOR who
+    // submits the request. Initial assignment must happen via the dedicated
+    // POST /incidents/{id}/assign endpoint by a manager/supervisor; supervisor
+    // is set automatically when an assignment is made.
     private Long reportedById;
 
     private Long assignedToId;

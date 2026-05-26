@@ -28,6 +28,7 @@ import { adminLogin, apiLogin } from './helpers/auth';
 import { ensureUserAndLogin } from './helpers/users';
 import {
   createIncident,
+  createIncidentViaOperator,
   assignIncident,
   transitionIncident,
   getIncident,
@@ -53,7 +54,7 @@ test.describe('Incident workflow — full lifecycle', () => {
     );
 
     // ── 1. ADMIN crea incidente (estado inicial OPEN) ────────────────
-    const initial = await createIncident(request, adminToken, {
+    const initial = await createIncidentViaOperator(request, adminToken, {
       title: `E2E - Workflow ${Date.now()}`,
     });
     expect(initial.status).toBe('OPEN');
@@ -168,7 +169,7 @@ test.describe('Incident workflow — full lifecycle', () => {
       'MANAGER',
     );
 
-    const incident = await createIncident(request, adminToken, {
+    const incident = await createIncidentViaOperator(request, adminToken, {
       title: `E2E - Cancel ${Date.now()}`,
     });
     expect(incident.status).toBe('OPEN');

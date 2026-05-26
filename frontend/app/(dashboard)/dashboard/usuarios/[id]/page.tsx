@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { usersApi } from "@/api/user";
 import { getRoleLabel, getRoleColor, Role } from "@/lib/rbac";
+import { useAuthStore } from "@/features/auth/stores/auth-store";
+import { extractApiError } from "@/lib/api-errors";
 import type { UserResponseDTO } from "@/api/types";
 import {
   ArrowLeft,
@@ -13,22 +15,68 @@ import {
   Building2,
   Activity,
   AlertTriangle,
+  Lock,
+  KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function UserDetailPage() {
   const { t, locale, mounted } = useI18n();
   const params = useParams();
   const router = useRouter();
+  const { user: currentUser } = useAuthStore();
   const [user, setUser] = useState<UserResponseDTO | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Admin password reset state
+  const [newPassword, setNewPassword] = useState("");
+  const [resetSubmitting, setResetSubmitting] = useState(false);
+  const [resetFeedback, setResetFeedback] = useState<
+    { type: "success" | "error"; msg: string } | null
+  >(null);
+
   const userId = Number(params.id);
+
+  // Only ADMIN and SUPERVISOR may reset another user's password. SUPERVISOR
+  // is further restricted to their own area on the backend; we surface the
+  // backend error in the toast if the area check fails server-side.
+  const canResetPassword =
+    currentUser?.role === Role.ADMIN || currentUser?.role === Role.SUPERVISOR;
+
+  const handleAdminResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetFeedback(null);
+    if (newPassword.length < 8) {
+      setResetFeedback({
+        type: "error",
+        msg: "La nueva contraseña debe tener al menos 8 caracteres.",
+      });
+      return;
+    }
+    setResetSubmitting(true);
+    try {
+      await usersApi.adminChangePassword(userId, { newPassword });
+      setNewPassword("");
+      setResetFeedback({
+        type: "success",
+        msg: "Contraseña actualizada correctamente.",
+      });
+    } catch (err) {
+      setResetFeedback({
+        type: "error",
+        msg: extractApiError(err, "No se pudo cambiar la contraseña."),
+      });
+    } finally {
+      setResetSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     usersApi
@@ -170,6 +218,65 @@ export default function UserDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Admin password reset — only visible to ADMIN / SUPERVISOR */}
+      {canResetPassword && (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-primary/10 p-2">
+                <KeyRound className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle>Restablecer contraseña</CardTitle>
+                <CardDescription>
+                  Asignar una nueva contraseña al usuario. Esta acción queda
+                  registrada y no notifica al usuario automáticamente.
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <form
+              onSubmit={handleAdminResetPassword}
+              className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end"
+            >
+              <div className="space-y-2">
+                <Label htmlFor="admin-new-password">Nueva contraseña</Label>
+                <Input
+                  id="admin-new-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  minLength={8}
+                  placeholder="Mínimo 8 caracteres"
+                  required
+                />
+              </div>
+              <Button type="submit" disabled={resetSubmitting}>
+                {resetSubmitting ? (
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                ) : (
+                  <Lock className="mr-2 h-4 w-4" />
+                )}
+                Actualizar contraseña
+              </Button>
+            </form>
+            {resetFeedback && (
+              <div
+                className={cn(
+                  "mt-4 rounded-lg p-3 text-sm",
+                  resetFeedback.type === "success"
+                    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : "bg-destructive/10 text-destructive",
+                )}
+              >
+                {resetFeedback.msg}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

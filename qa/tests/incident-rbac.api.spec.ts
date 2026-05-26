@@ -16,6 +16,7 @@ import { ensureUserAndLogin, ensureUserWithRole } from './helpers/users';
 import {
   assignIncident,
   createIncident,
+  createIncidentViaOperator,
   transitionIncident,
 } from './helpers/incidents';
 import { ROLE_IDS } from './helpers/env';
@@ -26,7 +27,7 @@ test.describe('Incident RBAC — by role', () => {
     const { token: managerToken } = await ensureUserAndLogin(request, adminToken, 'MANAGER');
     const technician = await ensureUserWithRole(request, adminToken, 'TECHNICIAN');
 
-    const incident = await createIncident(request, adminToken, {
+    const incident = await createIncidentViaOperator(request, adminToken, {
       title: `E2E - Manager assigns ${Date.now()}`,
     });
 
@@ -76,7 +77,7 @@ test.describe('Incident RBAC — by role', () => {
     );
     const technician = await ensureUserWithRole(request, adminToken, 'TECHNICIAN');
 
-    const incident = await createIncident(request, adminToken, {
+    const incident = await createIncidentViaOperator(request, adminToken, {
       title: `E2E - Supervisor assigns ${Date.now()}`,
     });
 
@@ -113,7 +114,7 @@ test.describe('Incident RBAC — by role', () => {
       'TECHNICIAN',
     );
 
-    const incident = await createIncident(request, adminToken);
+    const incident = await createIncidentViaOperator(request, adminToken);
     await assignIncident(request, managerToken, incident.id, technician.id);
 
     expect((await transitionIncident(request, technicianToken, incident.id, 'start')).status)

@@ -1,15 +1,27 @@
 import { test, expect } from '@playwright/test';
-import { login, createIncident, createRandomUser } from './test-utils';
+import { login, createRandomUser } from './test-utils';
+import { adminLogin } from './helpers/auth';
+import { createIncident, createIncidentViaOperator } from './helpers/incidents';
+import { ensureUserAndLogin } from './helpers/users';
 
 test.describe('Endpoints de incidentes', () => {
-  test('admin puede crear un incidente', async ({ request }) => {
-    const token = await login(request);
-    await createIncident(request, token);
+  test('OPERATOR puede crear un incidente y el reportedBy queda en el usuario autenticado', async ({ request }) => {
+    const adminToken = await adminLogin(request);
+    const { user: operator, token: operatorToken } = await ensureUserAndLogin(
+      request,
+      adminToken,
+      'OPERATOR',
+    );
+    const incident = await createIncident(request, operatorToken, {
+      title: `E2E - Operator create ${Date.now()}`,
+    });
+    expect(incident.status).toBe('OPEN');
+    expect(incident.reportedById).toBe(operator.id);
   });
 
   test('admin puede listar incidentes', async ({ request }) => {
     const token = await login(request);
-    const incident = await createIncident(request, token);
+    const incident = await createIncidentViaOperator(request, token);
 
     const listResponse = await request.get('/incidents', {
       headers: { Authorization: `Bearer ${token}` },
@@ -23,7 +35,7 @@ test.describe('Endpoints de incidentes', () => {
 
   test('admin puede obtener un incidente por id', async ({ request }) => {
     const token = await login(request);
-    const incident = await createIncident(request, token);
+    const incident = await createIncidentViaOperator(request, token);
 
     const response = await request.get(`/incidents/${incident.id}`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -42,7 +54,7 @@ test.describe('Endpoints de incidentes', () => {
 
   test('admin puede consultar el historial de assignments de un incidente', async ({ request }) => {
     const token = await login(request);
-    const incident = await createIncident(request, token);
+    const incident = await createIncidentViaOperator(request, token);
 
     const response = await request.get(`/incidents/${incident.id}/assignments`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -53,13 +65,15 @@ test.describe('Endpoints de incidentes', () => {
     expect(Array.isArray(assignments)).toBe(true);
   });
 
-  test('admin puede resolver un incidente respetando la state machine', async ({ request }) => {
+  test('TECHNICIAN asignado puede resolver un incidente respetando la state machine', async ({ request }) => {
     // Fase 2 enforces OPEN → ASSIGNED → IN_PROGRESS → RESOLVED. Driving an
     // incident straight from OPEN to RESOLVED is rejected with 409 now,
     // so the test walks the full happy path before asserting RESOLVED.
+    // After the OPERATOR-only creation rule, the incident is reported by
+    // an operator (helper). Admin still drives the assignment.
     const token = await login(request);
     const technician = await createRandomUser(request, token, 'TECHNICIAN');
-    const incident = await createIncident(request, token);
+    const incident = await createIncidentViaOperator(request, token);
 
     const assignResp = await request.post(`/incidents/${incident.id}/assign`, {
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -92,7 +106,7 @@ test.describe('Endpoints de incidentes', () => {
   test('admin puede asignar un incidente a un técnico', async ({ request }) => {
     const token = await login(request);
     const technician = await createRandomUser(request, token, 'TECHNICIAN');
-    const incident = await createIncident(request, token);
+    const incident = await createIncidentViaOperator(request, token);
 
     const assignResponse = await request.post(`/incidents/${incident.id}/assign`, {
       headers: {

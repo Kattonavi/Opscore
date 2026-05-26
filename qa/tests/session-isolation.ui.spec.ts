@@ -19,7 +19,7 @@ import { test, expect, request as playwrightRequest } from '@playwright/test';
 import { E2E } from './helpers/env';
 import { adminLogin } from './helpers/auth';
 import { ensureUserWithRole, type BootstrappedUser } from './helpers/users';
-import { createIncident } from './helpers/incidents';
+import { createIncidentViaOperator } from './helpers/incidents';
 
 let manager: BootstrappedUser;
 let technician: BootstrappedUser;
@@ -35,9 +35,11 @@ test.beforeAll(async () => {
     technician = await ensureUserWithRole(apiContext, adminToken, 'TECHNICIAN');
     operator = await ensureUserWithRole(apiContext, adminToken, 'OPERATOR');
 
-    // Pre-create one incident reported by the operator so the dashboard
-    // has something to render in the OPERATOR-only check.
-    await createIncident(apiContext, adminToken, {
+    // Pre-create one incident reported by an OPERATOR so the dashboard
+    // has something to render in the OPERATOR-only check. After business
+    // rule #1, only the OPERATOR role can create incidents, so we go
+    // through the helper that bootstraps one on demand.
+    await createIncidentViaOperator(apiContext, adminToken, {
       title: `E2E - Session iso ${Date.now()}`,
     });
   } finally {

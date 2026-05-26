@@ -56,3 +56,18 @@ export interface ChangePasswordDTO {
   currentPassword: string;
   newPassword: string;
 }
+
+// PATCH /users/me — only firstName/lastName editable. Backend enforces
+// regex `^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[ '-][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*$`.
+export interface UpdateMeRequestDTO {
+  firstName: string;
+  lastName: string;
+}
+
+// PATCH /users/{userId}/change-password — admin/supervisor reset.
+// Only the new password is sent; the current password is not asked for
+// because this endpoint operates on a third party, not the caller's own
+// credentials.
+export interface AdminChangePasswordDTO {
+  newPassword: string;
+}

@@ -10,6 +10,7 @@ import type { IncidentResponseDTO } from "@/api/incidents/types";
 import { Priority, IncidentType } from "@/api/incidents/types";
 import type { UserResponseDTO } from "@/api/types";
 import { usersApi } from "@/api/user";
+import { canCreateIncident } from "@/lib/rbac";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -63,6 +64,9 @@ export default function IncidentsPage() {
 
   const isTechnician = user?.role === "TECHNICIAN";
   const isOperator = user?.role === "OPERATOR";
+  // Business rule #1 — only OPERATOR can create incidents; the button must
+  // be hidden for every other role (the backend rejects them with 403).
+  const allowCreate = canCreateIncident(user?.role);
   const visibleIncidents = isTechnician
       ? incidents.filter((i) => i.assignedToId === user?.id)
       : isOperator
@@ -211,10 +215,12 @@ export default function IncidentsPage() {
               {seeding ? "Creando datos..." : "Seed test data"}
             </Button>
           )}
-          <Button onClick={handleOpenSheet}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            {t("dashboard.createIncident")}
-          </Button>
+          {allowCreate && (
+            <Button onClick={handleOpenSheet}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              {t("dashboard.createIncident")}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -367,7 +373,9 @@ export default function IncidentsPage() {
       )}
 
       {/* ─── Create Incident Sheet ─── */}
-      <CreateIncidentSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+      {allowCreate && (
+        <CreateIncidentSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+      )}
     </div>
   );
 }

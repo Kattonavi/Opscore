@@ -30,6 +30,12 @@ public class IncidentController {
     private final IncidentService incidentService;
     private final IncidentLogService incidentLogService;
 
+    // Role-level guard removed intentionally: the role check happens inside
+    // IncidentServiceImpl#createIncident via assertCanCreateIncident, which
+    // throws AccessDeniedException with a specific Spanish message that the
+    // global handler passes through to the client. This keeps the response
+    // body informative ("Solo los usuarios con rol operador...") instead of
+    // Spring's generic 403.
     @PostMapping
     public ResponseEntity<IncidentResponseDTO> createIncident(
             @Valid @RequestBody IncidentRequestDTO request
@@ -71,8 +77,11 @@ public class IncidentController {
         return ResponseEntity.ok(history);
     }
 
-    //tecnico resuelve incidente
-    @PreAuthorize("hasAnyRole('TECHNICIAN', 'ADMIN', 'MANAGER', 'SUPERVISOR')")
+    // Technical actions (start / hold / resolve) are limited to TECHNICIAN
+    // role at the controller. The service further restricts the action to the
+    // technician currently assigned to the incident — see
+    // IncidentAccessService#assertCanResolveIncident.
+    @PreAuthorize("hasRole('TECHNICIAN')")
     @PatchMapping("/{id}/resolve")
     public ResponseEntity<IncidentResponseDTO> resolveIncident(
             @PathVariable Long id,
@@ -84,7 +93,7 @@ public class IncidentController {
     }
 
     //Start
-    @PreAuthorize("hasAnyRole('TECHNICIAN', 'ADMIN', 'MANAGER', 'SUPERVISOR')")
+    @PreAuthorize("hasRole('TECHNICIAN')")
     @PatchMapping("/{id}/start")
     public ResponseEntity<IncidentResponseDTO> startIncident(
             @PathVariable Long id,
@@ -96,7 +105,7 @@ public class IncidentController {
     }
 
     //hold
-    @PreAuthorize("hasAnyRole('TECHNICIAN', 'ADMIN', 'MANAGER', 'SUPERVISOR')")
+    @PreAuthorize("hasRole('TECHNICIAN')")
     @PatchMapping("/{id}/hold")
     public ResponseEntity<IncidentResponseDTO> holdIncident(
             @PathVariable Long id,

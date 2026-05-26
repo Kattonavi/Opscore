@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { getRoleLabel, getRoleColor, type Role } from "@/lib/rbac";
+import { usersApi } from "@/api/user";
+import { extractApiError } from "@/lib/api-errors";
 import {
   User,
   Mail,
@@ -24,6 +26,13 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+// Mirror of UpdateMeRequestDTO regex on the backend. Keep both in sync.
+const NAME_REGEX =
+  /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+(?:[ '-][A-Za-zÁÉÍÓÚÜÑáéíóúüñ]+)*$/;
+
+const NAME_ERROR =
+  "El nombre solo puede contener letras, espacios, guiones o apóstrofes.";
+
 export default function ProfilePage() {
   const { t, mounted } = useI18n();
   const { user, setUser } = useAuthStore();
@@ -33,9 +42,17 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState({
     firstName: user?.firstName || "",
     lastName: user?.lastName || "",
-    email: user?.email || "",
   });
   const [saving, setSaving] = useState(false);
+
+  // Sync local form when the auth store finishes hydrating with the user.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- bridges Zustand store hydration (external) into the local form state, deliberate.
+    setProfile({
+      firstName: user?.firstName || "",
+      lastName: user?.lastName || "",
+    });
+  }, [user?.firstName, user?.lastName]);
 
   // Password form
   const [passwords, setPasswords] = useState({
@@ -55,35 +72,61 @@ export default function ProfilePage() {
 
   const showToast = (type: "success" | "error", msg: string) => {
     setToast({ type, msg });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 3500);
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 800));
-    if (user) {
-      setUser({ ...user, firstName: profile.firstName, lastName: profile.lastName, email: profile.email });
+    const firstName = profile.firstName.trim();
+    const lastName = profile.lastName.trim();
+
+    if (!firstName || !lastName) {
+      showToast("error", "El nombre y el apellido no pueden estar vacíos.");
+      return;
     }
-    setSaving(false);
-    showToast("success", t("profile.saveChanges") + " ✓");
+    if (!NAME_REGEX.test(firstName) || !NAME_REGEX.test(lastName)) {
+      showToast("error", NAME_ERROR);
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const updated = await usersApi.updateMe({ firstName, lastName });
+      setUser(updated);
+      showToast("success", t("profile.saveChanges") + " ✓");
+    } catch (err) {
+      showToast("error", extractApiError(err, "No se pudo actualizar el perfil."));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (passwords.new !== passwords.confirm) {
-      showToast("error", "Las contraseñas no coinciden");
+      showToast("error", "Las contraseñas no coinciden.");
       return;
     }
-    if (passwords.new.length < 4) {
-      showToast("error", "La contraseña debe tener al menos 4 caracteres");
+    if (passwords.new.length < 8) {
+      showToast("error", "La nueva contraseña debe tener al menos 8 caracteres.");
       return;
     }
     setChangingPw(true);
-    await new Promise((r) => setTimeout(r, 800));
-    setPasswords({ current: "", new: "", confirm: "" });
-    setChangingPw(false);
-    showToast("success", "Contraseña actualizada ✓");
+    try {
+      await usersApi.changePassword({
+        currentPassword: passwords.current,
+        newPassword: passwords.new,
+      });
+      setPasswords({ current: "", new: "", confirm: "" });
+      showToast("success", "Contraseña actualizada correctamente.");
+    } catch (err) {
+      showToast(
+        "error",
+        extractApiError(err, "No se pudo cambiar la contraseña."),
+      );
+    } finally {
+      setChangingPw(false);
+    }
   };
 
   if (!mounted) return null;
@@ -165,6 +208,8 @@ export default function ProfilePage() {
                       onChange={(e) =>
                         setProfile({ ...profile, firstName: e.target.value })
                       }
+                      required
+                      maxLength={60}
                     />
                   </div>
                   <div className="space-y-2">
@@ -175,6 +220,8 @@ export default function ProfilePage() {
                       onChange={(e) =>
                         setProfile({ ...profile, lastName: e.target.value })
                       }
+                      required
+                      maxLength={60}
                     />
                   </div>
                 </div>
@@ -183,11 +230,13 @@ export default function ProfilePage() {
                   <Input
                     id="email"
                     type="email"
-                    value={profile.email}
-                    onChange={(e) =>
-                      setProfile({ ...profile, email: e.target.value })
-                    }
+                    value={user?.email || ""}
+                    readOnly
+                    disabled
                   />
+                  <p className="text-xs text-muted-foreground">
+                    El correo no se puede modificar desde tu perfil.
+                  </p>
                 </div>
                 <Separator />
                 <div className="space-y-2">
@@ -247,6 +296,8 @@ export default function ProfilePage() {
                           setPasswords({ ...passwords, [field]: e.target.value })
                         }
                         placeholder="••••••••"
+                        required
+                        minLength={field === "current" ? 1 : 8}
                       />
                       <button
                         type="button"

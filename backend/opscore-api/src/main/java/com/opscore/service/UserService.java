@@ -10,28 +10,34 @@ import com.opscore.repository.RoleRepository;
 import com.opscore.repository.UserRepository;
 import com.opscore.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import com.opscore.entity.Area;
-import com.opscore.entity.Role;
 import java.time.LocalDateTime;
 
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserService {
+
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_SUPERVISOR = "SUPERVISOR";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final RoleRepository roleRepository;
     private final AreaRepository areaRepository;
+    private final WelcomeEmailService welcomeEmailService;
 
     public UserResponseDTO createUser(CreateUserRequestDTO request) {
 
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email already exists");
+            throw new BadRequestException("El email ya está registrado.");
         }
 
         Role role = roleRepository.findById(request.getRoleId())
@@ -58,63 +64,33 @@ public class UserService {
 
         User savedUser = userRepository.save(user);
 
-        return UserResponseDTO.builder()
-                .id(savedUser.getId())
-                .firstName(savedUser.getFirstName())
-                .lastName(savedUser.getLastName())
-                .email(savedUser.getEmail())
-                .role(savedUser.getRole().getName())
-                .area(
-                        savedUser.getArea() != null
-                                ? savedUser.getArea().getName()
-                                : null
-                )
-                .isActive(savedUser.isActive())
-                .avatar(savedUser.getAvatar())
-                .build();
+        // Welcome email — best-effort. Failures are logged but do NOT abort
+        // user creation (the account is already persisted). See
+        // WelcomeEmailService for SMTP configuration requirements.
+        try {
+            welcomeEmailService.sendWelcomeEmail(savedUser);
+        } catch (Exception ex) {
+            log.warn("[users] welcome email failed for {}: {}",
+                    savedUser.getEmail(), ex.getMessage());
+        }
+
+        return toResponse(savedUser);
     }
 
     public UserResponseDTO getUserById(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found")
+                        new ResourceNotFoundException("El usuario solicitado no existe.")
                 );
 
-        return UserResponseDTO.builder()
-                .id(user.getId())
-                .firstName(user.getFirstName())
-                .lastName(user.getLastName())
-                .email(user.getEmail())
-                .role(user.getRole().getName())
-                .area(
-                        user.getArea() != null
-                                ? user.getArea().getName()
-                                : null
-                )
-                .isActive(user.isActive())
-                .avatar(user.getAvatar())
-                .build();
+        return toResponse(user);
     }
 
     public List<UserResponseDTO> getAllUsers() {
 
         return userRepository.findAll()
                 .stream()
-                .map(user -> UserResponseDTO.builder()
-                        .id(user.getId())
-                        .firstName(user.getFirstName())
-                        .lastName(user.getLastName())
-                        .email(user.getEmail())
-                        .role(user.getRole().getName())
-                        .area(
-                                user.getArea() != null
-                                        ? user.getArea().getName()
-                                        : null
-                        )
-                        .isActive(user.isActive())
-                        .avatar(user.getAvatar())
-                        .build()
-                )
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -123,45 +99,24 @@ public class UserService {
         return userRepository
                 .findByActiveTrueAndRoleNameIn(List.of("TECHNICIAN"))
                 .stream()
-                .map(user -> UserResponseDTO.builder()
-                        .id(user.getId())
-                        .firstName(user.getFirstName())
-                        .lastName(user.getLastName())
-                        .email(user.getEmail())
-                        .role(user.getRole().getName())
-                        .area(
-                                user.getArea() != null
-                                        ? user.getArea().getName()
-                                        : null
-                        )
-                        .isActive(user.isActive())
-                        .avatar(user.getAvatar())
-                        .build()
-                )
+                .map(this::toResponse)
                 .toList();
     }
 
     public UserResponseDTO getCurrentUser() {
-        String email = SecurityUtils.getCurrentUserEmail();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found")
-                );
+        return toResponse(loadCurrentUser());
+    }
 
-        return UserResponseDTO.builder()
-                .id(user.getId())
-                .firstName(user.getFirstName())
-                .lastName(user.getLastName())
-                .email(user.getEmail())
-                .role(user.getRole().getName())
-                .area(
-                        user.getArea() != null
-                                ? user.getArea().getName()
-                                : null
-                )
-                .isActive(user.isActive())
-                .avatar(user.getAvatar())
-                .build();
+    /**
+     * Updates the safe-to-edit identity fields of the authenticated user.
+     * Role, email, active state and password are intentionally not exposed
+     * via this endpoint (see {@link UpdateMeRequestDTO}).
+     */
+    public UserResponseDTO updateMe(UpdateMeRequestDTO request) {
+        User user = loadCurrentUser();
+        user.setFirstName(request.getFirstName().trim());
+        user.setLastName(request.getLastName().trim());
+        return toResponse(userRepository.save(user));
     }
 
     public UserResponseDTO updateUserRole(
@@ -171,7 +126,7 @@ public class UserService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found")
+                        new ResourceNotFoundException("El usuario solicitado no existe.")
                 );
 
         Role role = roleRepository.findById(request.getRoleId())
@@ -181,22 +136,7 @@ public class UserService {
 
         user.setRole(role);
 
-        User updatedUser = userRepository.save(user);
-
-        return UserResponseDTO.builder()
-                .id(updatedUser.getId())
-                .firstName(updatedUser.getFirstName())
-                .lastName(updatedUser.getLastName())
-                .email(updatedUser.getEmail())
-                .role(updatedUser.getRole().getName())
-                .area(
-                        updatedUser.getArea() != null
-                                ? updatedUser.getArea().getName()
-                                : null
-                )
-                .isActive(updatedUser.isActive())
-                .avatar(updatedUser.getAvatar())
-                .build();
+        return toResponse(userRepository.save(user));
     }
 
     public UserResponseDTO updateUserStatus(
@@ -206,43 +146,27 @@ public class UserService {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found")
+                        new ResourceNotFoundException("El usuario solicitado no existe.")
                 );
 
         user.setActive(request.isActive());
 
-        User updatedUser = userRepository.save(user);
-
-        return UserResponseDTO.builder()
-                .id(updatedUser.getId())
-                .firstName(updatedUser.getFirstName())
-                .lastName(updatedUser.getLastName())
-                .email(updatedUser.getEmail())
-                .role(updatedUser.getRole().getName())
-                .area(
-                        updatedUser.getArea() != null
-                                ? updatedUser.getArea().getName()
-                                : null
-                )
-                .isActive(updatedUser.isActive())
-                .avatar(updatedUser.getAvatar())
-                .build();
+        return toResponse(userRepository.save(user));
     }
 
+    /**
+     * Self-service password change for the authenticated user. Validates
+     * that the current password matches before applying the new one.
+     */
     public void changePassword(ChangePasswordDTO request) {
 
-        String email = SecurityUtils.getCurrentUserEmail();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found")
-                );
+        User user = loadCurrentUser();
 
         if (!passwordEncoder.matches(
                 request.getCurrentPassword(),
                 user.getPassword()
         )) {
-            throw new BadRequestException("Current password is incorrect");
+            throw new BadRequestException("La contraseña actual es incorrecta.");
         }
 
         user.setPassword(
@@ -252,4 +176,71 @@ public class UserService {
         userRepository.save(user);
     }
 
+    /**
+     * Administrative password reset performed by an ADMIN or SUPERVISOR.
+     *
+     * <p>Authorization rules:
+     * <ul>
+     *   <li>ADMIN may reset the password of any user.</li>
+     *   <li>SUPERVISOR may reset the password of any user that belongs to
+     *       the same area as the supervisor. If the supervisor has no
+     *       area assigned, or the target user has no area, the call is
+     *       rejected — mirroring the area-scope rule already enforced by
+     *       <code>IncidentAccessService#assertCanAssignToTechnician</code>.</li>
+     *   <li>Any other role is rejected at the controller via
+     *       <code>@PreAuthorize</code>.</li>
+     * </ul>
+     */
+    public void adminChangePassword(Long userId, AdminChangePasswordDTO request) {
+        User actor = loadCurrentUser();
+        String actorRole = actor.getRole() != null ? actor.getRole().getName() : null;
+
+        User target = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "El usuario solicitado no existe."
+                ));
+
+        if (ROLE_SUPERVISOR.equals(actorRole)) {
+            // Area-scoped supervisor — same rule as assignment.
+            if (actor.getArea() == null
+                    || target.getArea() == null
+                    || !actor.getArea().getId().equals(target.getArea().getId())) {
+                throw new AccessDeniedException(
+                        "Como supervisor solo puedes cambiar la contraseña de usuarios de tu propia área."
+                );
+            }
+        } else if (!ROLE_ADMIN.equals(actorRole)) {
+            // Defense in depth — @PreAuthorize should already block this,
+            // but if a future change widens the allowed roles, this stops
+            // an unprivileged caller from getting past the service.
+            throw new AccessDeniedException(
+                    "No tienes permiso para cambiar la contraseña de este usuario."
+            );
+        }
+
+        target.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        userRepository.save(target);
+    }
+
+    // ── helpers ─────────────────────────────────────────────────────────
+
+    private User loadCurrentUser() {
+        String email = SecurityUtils.getCurrentUserEmail();
+        return userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("El usuario autenticado no existe."));
+    }
+
+    private UserResponseDTO toResponse(User user) {
+        return UserResponseDTO.builder()
+                .id(user.getId())
+                .firstName(user.getFirstName())
+                .lastName(user.getLastName())
+                .email(user.getEmail())
+                .role(user.getRole() != null ? user.getRole().getName() : null)
+                .area(user.getArea() != null ? user.getArea().getName() : null)
+                .isActive(user.isActive())
+                .avatar(user.getAvatar())
+                .build();
+    }
 }

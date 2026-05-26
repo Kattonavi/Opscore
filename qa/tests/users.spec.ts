@@ -117,7 +117,9 @@ test.describe('Endpoints de usuarios', () => {
       data: { currentPassword: createdUser.password, newPassword },
     });
 
-    expect(changePasswordResponse.status()).toBe(204);
+    expect(changePasswordResponse.status()).toBe(200);
+    const changePasswordBody = await changePasswordResponse.json();
+    expect(changePasswordBody).toHaveProperty('message');
 
     const reloginResponse = await request.post('/auth/login', {
       headers: { 'Content-Type': 'application/json' },

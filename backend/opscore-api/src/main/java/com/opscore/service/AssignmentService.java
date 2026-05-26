@@ -58,24 +58,32 @@ public class AssignmentService {
         //    espera de cierre o cancelación administrativa.
         IncidentStatus status = incident.getStatus();
         if (status == IncidentStatus.CLOSED
-                || status == IncidentStatus.CANCELED
-                || status == IncidentStatus.RESOLVED) {
+                || status == IncidentStatus.CANCELED) {
             throw new ConflictException(
-                    "Cannot assign an incident in state " + status
-                            + ". Allowed only in OPEN / ASSIGNED / IN_PROGRESS / ON_HOLD."
+                    "No se puede asignar un incidente cerrado o cancelado."
+            );
+        }
+        if (status == IncidentStatus.RESOLVED) {
+            throw new ConflictException(
+                    "No se puede reasignar un incidente resuelto. Cancele o cierre primero."
             );
         }
 
         // 4. Cargar destinatario.
         User assignedTo = userRepository.findById(request.getAssignedToId())
-                .orElseThrow(() -> new ResourceNotFoundException("Assigned user not found"));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "El usuario destinatario no existe."));
 
         // 5. El destinatario debe ser un técnico activo.
-        if (!assignedTo.isActive()
-                || assignedTo.getRole() == null
+        if (assignedTo.getRole() == null
                 || !TECHNICIAN_ROLE.equals(assignedTo.getRole().getName())) {
             throw new ConflictException(
-                    "Assignee must be an active TECHNICIAN"
+                    "Solo los usuarios con rol técnico pueden ser asignados a incidentes."
+            );
+        }
+        if (!assignedTo.isActive()) {
+            throw new ConflictException(
+                    "No se puede asignar un incidente a un técnico inactivo."
             );
         }
 

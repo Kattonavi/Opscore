@@ -10,6 +10,7 @@ import com.opscore.entity.User;
 import com.opscore.enums.IncidentAction;
 import com.opscore.enums.IncidentStatus;
 import com.opscore.enums.Priority;
+import com.opscore.exception.BadRequestException;
 import com.opscore.exception.ConflictException;
 import com.opscore.exception.ResourceNotFoundException;
 import com.opscore.repository.AreaRepository;
@@ -70,6 +71,20 @@ public class IncidentServiceImpl implements IncidentService {
     public IncidentResponseDTO createIncident(IncidentRequestDTO request) {
         User currentUser = getCurrentAuthenticatedUser();
 
+        // Business rule #1: Only OPERATOR users may create incidents.
+        // Specific 403 message is thrown by the access service.
+        incidentAccessService.assertCanCreateIncident(currentUser);
+
+        // Business rule #2: reportedBy must always be the authenticated user.
+        // Any reportedById/assignedToId/supervisorId in the payload is IGNORED
+        // — initial assignment must go through POST /incidents/{id}/assign and
+        // is performed by a manager/supervisor.
+        if (currentUser == null || currentUser.getId() == null) {
+            throw new BadRequestException(
+                    "El incidente debe estar asociado a un operador válido."
+            );
+        }
+
         Area area = null;
 
         if (request.getAreaId() != null) {
@@ -78,36 +93,6 @@ public class IncidentServiceImpl implements IncidentService {
                             new ResourceNotFoundException("Area not found"));
         }
 
-        User reportedBy = currentUser;
-
-        if (request.getReportedById() != null) {
-            if (!request.getReportedById().equals(currentUser.getId())) {
-                incidentAccessService.assertCanAssignIncident(currentUser);
-            }
-            reportedBy = userRepository.findById(request.getReportedById())
-                    .orElseThrow(() ->
-                            new ResourceNotFoundException("Reported user not found"));
-        }
-
-        User assignedTo = null;
-
-        if (request.getAssignedToId() != null) {
-            incidentAccessService.assertCanAssignIncident(currentUser);
-            assignedTo = userRepository.findById(request.getAssignedToId())
-                    .orElseThrow(() ->
-                            new ResourceNotFoundException("Assigned user not found"));
-        }
-
-        User supervisor = null;
-
-        if (request.getSupervisorId() != null) {
-            incidentAccessService.assertCanAssignIncident(currentUser);
-            supervisor = userRepository.findById(request.getSupervisorId())
-                    .orElseThrow(() ->
-                            new ResourceNotFoundException("Supervisor not found"));
-        }
-
-        // 🔥 Regla de negocio: valores iniciales
         Incident incident = Incident.builder()
                 .title(request.getTitle())
                 .description(request.getDescription())
@@ -119,9 +104,9 @@ public class IncidentServiceImpl implements IncidentService {
                                 ? request.getIsFalseAlarm()
                                 : false                )
                 .area(area)
-                .reportedBy(reportedBy)
-                .assignedTo(assignedTo)
-                .supervisor(supervisor)
+                .reportedBy(currentUser)
+                .assignedTo(null)
+                .supervisor(null)
                 .resolvedAt(null)
                 .build();
 
