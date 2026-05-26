@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { useAuthStore } from "@/features/auth/stores/auth-store";
+import { useIncidentsStore } from "@/features/incidents/stores/incidents-store";
 import { incidentsApi } from "@/api/incidents";
 import { usersApi } from "@/api/user";
 import type { UserResponseDTO } from "@/api/types";
@@ -19,6 +20,17 @@ import {
   incidentTypeConfig,
   IncidentAction,
 } from "@/api/incidents/types";
+import {
+  canAssignIncident,
+  canCancelIncident,
+  canCloseIncident,
+  canStartIncident,
+  canHoldIncident,
+  canResolveIncident,
+  canViewAssignmentsTab,
+  isAssignedTechnician,
+  Role,
+} from "@/lib/rbac";
 import {
   ArrowLeft,
   MessageSquarePlus,
@@ -129,6 +141,15 @@ export default function IncidentDetailPage() {
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [selectedTechId, setSelectedTechId] = useState<string>("");
   const [assignSubmitting, setAssignSubmitting] = useState(false);
+  // Tracks whether the assignable users list failed to load (e.g. 403/500
+  // from the backend), so the Select can explain *why* it is empty
+  // instead of silently saying "no technicians".
+  const [usersLoadError, setUsersLoadError] = useState(false);
+
+  // Keep the global incidents list in sync after a state-changing action
+  // on the detail page. Zustand returns a stable reference to the action,
+  // so we can call it from event handlers without effect dependencies.
+  const refreshIncidentsList = useIncidentsStore((s) => s.fetchIncidents);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -153,8 +174,13 @@ export default function IncidentDetailPage() {
     try {
       const assignable = await usersApi.getAssignable();
       setUsers(assignable);
+      setUsersLoadError(false);
     } catch {
-      // Silently fail — users are optional for assignment
+      // Keep the assignment UI usable but flag the failure so the
+      // empty-state message can differentiate "no technicians" from
+      // "could not load technicians".
+      setUsers([]);
+      setUsersLoadError(true);
     }
   }, []);
 
@@ -178,6 +204,10 @@ export default function IncidentDetailPage() {
       // Refresh timeline after state change
       const newTimeline = await incidentsApi.getTimeline(incidentId);
       setTimeline(newTimeline);
+      // Keep the global incidents list (sidebar counts, board columns)
+      // consistent. Fire-and-forget — errors here do not affect the
+      // detail-page experience.
+      refreshIncidentsList().catch(() => undefined);
     } catch (err: unknown) {
       setActionError(extractApiError(err, `Error al ejecutar ${action}`));
     } finally {
@@ -260,6 +290,9 @@ export default function IncidentDetailPage() {
       setTimeline(newTimeline);
       setAssignments(newAssignments);
       setSelectedTechId("");
+      // Refresh the global list so board/sidebar reflect the new
+      // ASSIGNED status without a full page reload.
+      refreshIncidentsList().catch(() => undefined);
     } catch (err: unknown) {
       setActionError(extractApiError(err, "Error al asignar"));
     } finally {
@@ -268,31 +301,22 @@ export default function IncidentDetailPage() {
   };
 
   // ── Derive available actions ─────────────────
+  //
+  // All visibility rules are centralised in `@/lib/rbac` and mirror the
+  // backend authorisation (`IncidentAccessService`). Do not duplicate
+  // role/status comparisons in this file.
 
-  const canStart =
-    (incident?.status === "ASSIGNED" || incident?.status === "ON_HOLD") &&
-    currentUser?.role === "TECHNICIAN";
-  const canHold =
-    incident?.status === "IN_PROGRESS" && currentUser?.role === "TECHNICIAN";
-  const canResolve =
-    incident?.status === "IN_PROGRESS" && currentUser?.role === "TECHNICIAN";
-  const canClose =
-    incident?.status === "RESOLVED" &&
-    (currentUser?.role === "SUPERVISOR" || currentUser?.role === "ADMIN");
-  const canCancel =
-    incident &&
-    incident.status !== "CLOSED" &&
-    incident.status !== "RESOLVED" &&
-    incident.status !== "CANCELED" &&
-    (currentUser?.role === "SUPERVISOR" || currentUser?.role === "ADMIN");
-  const canAssign =
-    currentUser &&
-    (currentUser.role === "SUPERVISOR" || currentUser.role === "ADMIN") &&
-    incident &&
-    incident.status !== "CLOSED" &&
-    incident.status !== "CANCELED";
-  const canViewAssignments =
-    currentUser?.role !== "OPERATOR";
+  const currentRole = currentUser?.role;
+  const currentStatus = incident?.status;
+  const isAssigned = isAssignedTechnician(currentUser, incident);
+
+  const canStart = canStartIncident(currentRole, currentStatus, isAssigned);
+  const canHold = canHoldIncident(currentRole, currentStatus, isAssigned);
+  const canResolve = canResolveIncident(currentRole, currentStatus, isAssigned);
+  const canClose = canCloseIncident(currentRole, currentStatus);
+  const canCancel = !!incident && canCancelIncident(currentRole, currentStatus);
+  const canAssign = !!incident && canAssignIncident(currentRole, currentStatus);
+  const canViewAssignments = canViewAssignmentsTab(currentRole);
 
   if (!mounted) return null;
 
@@ -573,37 +597,58 @@ export default function IncidentDetailPage() {
                             </SelectTrigger>
                             <SelectPopup>
                               <SelectList>
-                                {users
-                                  .filter((u) => {
-                                    // Supervisors only see their area
-                                    if (currentUser?.role === "SUPERVISOR") {
-                                      return u.area === currentUser.area;
-                                    }
-                                    return true;
-                                  })
-                                  .map((u) => (
-                                    <SelectItem
-                                      key={u.id}
-                                      value={String(u.id)}
-                                    >
-                                      <SelectItemIndicator />
+                                {(() => {
+                                  // SUPERVISOR sees only technicians in
+                                  // their own area; everyone else sees all.
+                                  const isSupervisor =
+                                    currentUser?.role === Role.SUPERVISOR;
+                                  const filtered = users.filter((u) =>
+                                    isSupervisor
+                                      ? u.area === currentUser?.area
+                                      : true,
+                                  );
+
+                                  if (filtered.length > 0) {
+                                    return filtered.map((u) => (
+                                      <SelectItem
+                                        key={u.id}
+                                        value={String(u.id)}
+                                      >
+                                        <SelectItemIndicator />
+                                        <SelectItemText>
+                                          {u.firstName} {u.lastName}
+                                        </SelectItemText>
+                                      </SelectItem>
+                                    ));
+                                  }
+
+                                  // Differentiate the three empty cases:
+                                  //  1) request failed (403/500/network)
+                                  //  2) supervisor filter left nothing
+                                  //  3) backend simply has no technicians
+                                  let emptyMessage: string;
+                                  if (usersLoadError) {
+                                    emptyMessage =
+                                      "No se pudieron cargar los técnicos. Reintentá más tarde.";
+                                  } else if (
+                                    isSupervisor &&
+                                    users.length > 0
+                                  ) {
+                                    emptyMessage =
+                                      "No hay técnicos para tu área. Pedile al admin que asigne uno.";
+                                  } else {
+                                    emptyMessage =
+                                      "No hay técnicos activos disponibles.";
+                                  }
+
+                                  return (
+                                    <SelectItem value="">
                                       <SelectItemText>
-                                        {u.firstName} {u.lastName}
+                                        {emptyMessage}
                                       </SelectItemText>
                                     </SelectItem>
-                                  ))}
-                                {users.filter((u) => {
-                                  if (currentUser?.role === "SUPERVISOR") {
-                                    return u.area === currentUser.area;
-                                  }
-                                  return true;
-                                }).length === 0 && (
-                                  <SelectItem value="">
-                                    <SelectItemText>
-                                      No hay técnicos disponibles
-                                    </SelectItemText>
-                                  </SelectItem>
-                                )}
+                                  );
+                                })()}
                               </SelectList>
                             </SelectPopup>
                           </Select>

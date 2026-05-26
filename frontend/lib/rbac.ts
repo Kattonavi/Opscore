@@ -168,3 +168,133 @@ export function getRoleColor(role: Role | string | null | undefined): string {
       return "bg-muted text-muted-foreground";
   }
 }
+
+// ──────────────────────────────────────────────────────────────────
+// Incident RBAC helpers
+//
+// These helpers mirror the rules enforced by the backend
+// (`IncidentAccessService` + controller `@PreAuthorize`).
+// Keep them as the single source of truth for *visual* permission
+// checks in the UI; do not duplicate role/status comparisons in
+// page components.
+// ──────────────────────────────────────────────────────────────────
+
+/** Incident lifecycle states, mirrored from `@/api/incidents/types`. */
+export type IncidentStatusName =
+  | "OPEN"
+  | "ASSIGNED"
+  | "IN_PROGRESS"
+  | "ON_HOLD"
+  | "RESOLVED"
+  | "CLOSED"
+  | "CANCELED";
+
+/** Minimal user shape required by the helpers (id + role). */
+export interface RbacUser {
+  id: number;
+  role: Role | string;
+}
+
+/** Minimal incident shape required by the helpers. `assignedToId` is the
+ *  authoritative field on `IncidentResponseDTO`. */
+export interface RbacIncident {
+  assignedToId?: number | null;
+}
+
+/** ADMIN / MANAGER / SUPERVISOR — the roles authorised to manage the
+ *  lifecycle of an incident from a "managerial" perspective. */
+export function isIncidentManagerRole(
+  role: Role | string | null | undefined,
+): boolean {
+  return (
+    role === Role.ADMIN ||
+    role === Role.MANAGER ||
+    role === Role.SUPERVISOR
+  );
+}
+
+/** True when the current TECHNICIAN user is the one assigned to the
+ *  incident. Returns false for any other role or when either side is
+ *  missing the id. */
+export function isAssignedTechnician(
+  user: RbacUser | null | undefined,
+  incident: RbacIncident | null | undefined,
+): boolean {
+  if (!user || !incident) return false;
+  if (user.role !== Role.TECHNICIAN) return false;
+  return (
+    typeof incident.assignedToId === "number" &&
+    incident.assignedToId === user.id
+  );
+}
+
+// ── Per-action helpers ────────────────────────────────────────────
+
+/** Assign / Reassign: managers, while the incident is still actionable. */
+export function canAssignIncident(
+  role: Role | string | null | undefined,
+  status: IncidentStatusName | string | null | undefined,
+): boolean {
+  if (!isIncidentManagerRole(role)) return false;
+  return status !== "CLOSED" && status !== "CANCELED";
+}
+
+/** Cancel: managers, until the incident is resolved/closed/already cancelled. */
+export function canCancelIncident(
+  role: Role | string | null | undefined,
+  status: IncidentStatusName | string | null | undefined,
+): boolean {
+  if (!isIncidentManagerRole(role)) return false;
+  return (
+    status !== "CLOSED" &&
+    status !== "RESOLVED" &&
+    status !== "CANCELED"
+  );
+}
+
+/** Close (RESOLVED → CLOSED): managers only. */
+export function canCloseIncident(
+  role: Role | string | null | undefined,
+  status: IncidentStatusName | string | null | undefined,
+): boolean {
+  if (!isIncidentManagerRole(role)) return false;
+  return status === "RESOLVED";
+}
+
+/** Start (ASSIGNED / ON_HOLD → IN_PROGRESS): only the assigned technician. */
+export function canStartIncident(
+  role: Role | string | null | undefined,
+  status: IncidentStatusName | string | null | undefined,
+  isAssigned: boolean,
+): boolean {
+  if (role !== Role.TECHNICIAN || !isAssigned) return false;
+  return status === "ASSIGNED" || status === "ON_HOLD";
+}
+
+/** Hold (IN_PROGRESS → ON_HOLD): only the assigned technician. */
+export function canHoldIncident(
+  role: Role | string | null | undefined,
+  status: IncidentStatusName | string | null | undefined,
+  isAssigned: boolean,
+): boolean {
+  if (role !== Role.TECHNICIAN || !isAssigned) return false;
+  return status === "IN_PROGRESS";
+}
+
+/** Resolve (IN_PROGRESS → RESOLVED): only the assigned technician. */
+export function canResolveIncident(
+  role: Role | string | null | undefined,
+  status: IncidentStatusName | string | null | undefined,
+  isAssigned: boolean,
+): boolean {
+  if (role !== Role.TECHNICIAN || !isAssigned) return false;
+  return status === "IN_PROGRESS";
+}
+
+/** Should the "Assignments" tab be visible to this role at all?
+ *  OPERATOR has no business managing assignments. */
+export function canViewAssignmentsTab(
+  role: Role | string | null | undefined,
+): boolean {
+  return role !== Role.OPERATOR;
+}
