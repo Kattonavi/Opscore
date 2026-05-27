@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,7 +19,24 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.time.LocalDateTime;
 
 @EnableJpaAuditing
-@SpringBootApplication
+/*
+ * UserDetailsServiceAutoConfiguration is excluded on purpose. The app
+ * authenticates manually:
+ *   - AuthService.login() reads the user from UserRepository and verifies
+ *     the BCrypt hash with PasswordEncoder.matches().
+ *   - JwtFilter populates the SecurityContext directly from the JWT payload
+ *     (email -> UserRepository -> SimpleGrantedAuthority("ROLE_" + role)).
+ * Neither path goes through AuthenticationManager / UserDetailsService.
+ *
+ * Without this exclusion, Spring Boot detects that no UserDetailsService
+ * bean is defined and registers an InMemoryUserDetailsManager with a
+ * random "user" password, logging the noisy:
+ *   "Using generated security password: <uuid>"
+ * That backend user is unused by the JWT flow but the warning shows up
+ * on every Railway boot. Excluding the autoconfig removes the warning
+ * without touching the real auth pipeline.
+ */
+@SpringBootApplication(exclude = { UserDetailsServiceAutoConfiguration.class })
 @RequiredArgsConstructor
 public class OpscoreApiApplication {
 
