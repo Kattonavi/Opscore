@@ -60,7 +60,10 @@ const navItems: NavItem[] = [
     icon: "Users",
     key: "usuarios",
     label: "nav.usuarios",
-    roles: [Role.ADMIN, Role.MANAGER],
+    // Backend (UserController) restringe /users a ADMIN. Mantener una sola
+    // regla en todo el stack para que el menú no muestre accesos que el
+    // backend rechazará con 403.
+    roles: [Role.ADMIN],
   },
   {
     href: "/dashboard/roles",

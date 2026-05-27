@@ -7,9 +7,6 @@ import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useIncidentsStore } from "@/features/incidents/stores/incidents-store";
 import { CreateIncidentSheet } from "@/features/incidents/components/create-incident-sheet";
 import type { IncidentResponseDTO } from "@/api/incidents/types";
-import { Priority, IncidentType } from "@/api/incidents/types";
-import type { UserResponseDTO } from "@/api/types";
-import { usersApi } from "@/api/user";
 import { canCreateIncident } from "@/lib/rbac";
 import {
   AlertTriangle,
@@ -21,18 +18,9 @@ import {
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-
-const AREA_OPTIONS = [
-  { id: 1, name: "PRODUCTION" },
-  { id: 2, name: "CONTABILITY" },
-  { id: 3, name: "RRHH" },
-  { id: 4, name: "IT" },
-  { id: 5, name: "LOGISTICS" },
-];
 
 const priorityConfig: Record<string, { color: string; badge: string }> = {
   LOW: { color: "bg-blue-50 dark:bg-blue-950", badge: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
@@ -44,22 +32,15 @@ const priorityConfig: Record<string, { color: string; badge: string }> = {
 export default function IncidentsPage() {
   const { t, mounted } = useI18n();
   const { user } = useAuthStore();
-  const router = useRouter();
   const {
     incidents,
     loading,
     fetchIncidents,
-    createIncident,
   } = useIncidentsStore();
-  const [allUsers, setAllUsers] = useState<UserResponseDTO[]>([]);
-  const [seeding, setSeeding] = useState(false);
-  const [seedDone, setSeedDone] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  // Fetch users for supervisor + seed lookup
   useEffect(() => {
     fetchIncidents();
-    usersApi.getAll().then(setAllUsers).catch(() => {});
   }, []);
 
   const isTechnician = user?.role === "TECHNICIAN";
@@ -87,104 +68,11 @@ export default function IncidentsPage() {
     { total: 0, open: 0, assigned: 0, inProgress: 0, onHold: 0, resolved: 0, closed: 0 },
   );
 
-  // ── Seed test data ──────────────────────────
-
-  const roleIdMap: Record<string, number> = {
-    ADMIN: 1,
-    MANAGER: 2,
-    SUPERVISOR: 3,
-    TECHNICIAN: 4,
-    OPERATOR: 5,
-    USER: 6,
-  };
-
-  const SEED_USERS = [
-    { firstName: "Laura", lastName: "Pérez", email: "laura@opscore.com", role: "SUPERVISOR", area: "PRODUCTION" },
-    { firstName: "Carlos", lastName: "Gómez", email: "carlos@opscore.com", role: "SUPERVISOR", area: "CONTABILITY" },
-    { firstName: "María", lastName: "López", email: "maria@opscore.com", role: "SUPERVISOR", area: "RRHH" },
-    { firstName: "Pedro", lastName: "Ramírez", email: "pedro@opscore.com", role: "SUPERVISOR", area: "IT" },
-    { firstName: "Ana", lastName: "Martínez", email: "ana@opscore.com", role: "SUPERVISOR", area: "LOGISTICS" },
-    { firstName: "Diego", lastName: "Fernández", email: "diego@opscore.com", role: "TECHNICIAN", area: "PRODUCTION" },
-    { firstName: "Sofía", lastName: "Torres", email: "sofia@opscore.com", role: "TECHNICIAN", area: "CONTABILITY" },
-    { firstName: "Luis", lastName: "Herrera", email: "luis@opscore.com", role: "TECHNICIAN", area: "IT" },
-    { firstName: "Valentina", lastName: "Díaz", email: "valentina@opscore.com", role: "OPERATOR", area: "PRODUCTION" },
-    { firstName: "Jorge", lastName: "Castro", email: "jorge@opscore.com", role: "OPERATOR", area: "RRHH" },
-    { firstName: "Camila", lastName: "Rojas", email: "camila@opscore.com", role: "OPERATOR", area: "LOGISTICS" },
-    { firstName: "Andrés", lastName: "Morales", email: "andres@opscore.com", role: "OPERATOR", area: "CONTABILITY" },
-    { firstName: "Florencia", lastName: "Acosta", email: "florencia@opscore.com", role: "TECHNICIAN", area: "LOGISTICS" },
-  ];
-
-  const handleSeedData = async () => {
-    setSeeding(true);
-    try {
-      // Create users
-      for (const u of SEED_USERS) {
-        try {
-          await usersApi.create({
-            firstName: u.firstName,
-            lastName: u.lastName,
-            email: u.email,
-            password: "abcd1234",
-            roleId: roleIdMap[u.role] || 5,
-            areaId: AREA_OPTIONS.find((a) => a.name === u.area)?.id || null,
-          });
-        } catch {
-          // User already exists — skip
-        }
-      }
-
-      // Re-fetch users
-      const updatedUsers = await usersApi.getAll();
-      setAllUsers(updatedUsers);
-
-      // Create test incidents
-      const TITLES = [
-        "Falla en línea de producción N°3",
-        "Error en facturación del cliente XYZ",
-        "Problema con nómina de empleados",
-        "Caída del servidor principal",
-        "Incidente de seguridad en acceso",
-        "Desperfecto en maquinaria de empaque",
-        "Discrepancia en inventario de materiales",
-        "Fuga en sistema de refrigeración",
-        "Error en reporte financiero mensual",
-        "Problema de conectividad en oficina",
-        "Falla en equipo de laboratorio",
-        "Error en etiquetado de lote",
-      ];
-
-      for (let i = 0; i < TITLES.length; i++) {
-        const area = AREA_OPTIONS[i % AREA_OPTIONS.length];
-        const areaUsers = updatedUsers.filter((u) => u.area === area.name);
-        const supervisor = areaUsers.find((u) => u.role === "SUPERVISOR");
-        const technician = areaUsers.find((u) => u.role === "TECHNICIAN");
-        const operator = areaUsers.find((u) => u.role === "OPERATOR");
-
-        try {
-          await createIncident({
-            title: TITLES[i],
-            description: `Incidente de prueba: ${TITLES[i]}`,
-            type: IncidentType.OTHER,
-            priority: ([Priority.LOW, Priority.MEDIUM, Priority.HIGH, Priority.CRITICAL] as const)[i % 4],
-            areaId: area.id,
-            reportedById: operator?.id || user?.id,
-            assignedToId: technician?.id || undefined,
-            supervisorId: supervisor?.id || undefined,
-            isFalseAlarm: false,
-          });
-        } catch {
-          // Skip if fails
-        }
-      }
-
-      await fetchIncidents();
-      setSeedDone(true);
-    } catch (err) {
-      console.error("Seed error:", err);
-    } finally {
-      setSeeding(false);
-    }
-  };
+  // NOTE: el botón "Seed test data" se removió del frontend productivo.
+  // Bajo la nueva regla #1 sólo OPERATOR puede crear incidentes, por lo que
+  // sembrar datos desde un ADMIN ya no es viable. Si se necesita seed,
+  // moverlo a una herramienta de desarrollo (script `qa/`) o a un endpoint
+  // dev-only protegido en el backend.
 
   const handleOpenSheet = () => {
     setSheetOpen(true);
@@ -205,16 +93,6 @@ export default function IncidentsPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          {user?.role === "ADMIN" && !seedDone && (
-            <Button variant="outline" size="sm" onClick={handleSeedData} disabled={seeding}>
-              {seeding ? (
-                <div className="mr-1.5 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              ) : (
-                <Plus className="mr-1.5 h-4 w-4" />
-              )}
-              {seeding ? "Creando datos..." : "Seed test data"}
-            </Button>
-          )}
           {allowCreate && (
             <Button onClick={handleOpenSheet}>
               <Plus className="mr-1.5 h-4 w-4" />

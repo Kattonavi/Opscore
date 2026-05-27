@@ -47,7 +47,7 @@ public class AssignmentService {
 
         // 1. Existencia del incidente.
         Incident incident = incidentRepository.findById(incidentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Incident not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Incidente no encontrado"));
 
         // 2. Quien asigna debe ser administrativo (ADMIN/MANAGER/SUPERVISOR).
         User assignedBy = currentUserService.getCurrentUser();

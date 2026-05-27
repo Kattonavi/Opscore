@@ -147,7 +147,9 @@ test.describe('Incident RBAC — by role', () => {
       })
     ).json();
 
-    const incident = await createIncident(request, adminToken);
+    // Regla #1: sólo OPERATOR crea incidentes. Antes este test usaba el
+    // token de ADMIN; ahora delega al wrapper que bootea un operator.
+    const incident = await createIncidentViaOperator(request, adminToken);
     await assignIncident(request, managerToken, incident.id, assignedTech.id);
 
     const resp = await request.patch(`/incidents/${incident.id}/start`, {
@@ -224,8 +226,9 @@ test.describe('Incident RBAC — by role', () => {
       'OPERATOR',
     );
 
-    // Incidente reportado por otro (creado por admin sin reportedById = operator).
-    const foreign = await createIncident(request, adminToken, {
+    // Incidente reportado por otro operator (regla #1: sólo OPERATOR crea).
+    // `createIncidentViaOperator` arranca un operator distinto (areaId 1).
+    const foreign = await createIncidentViaOperator(request, adminToken, {
       title: `E2E - Foreign ${Date.now()}`,
     });
 

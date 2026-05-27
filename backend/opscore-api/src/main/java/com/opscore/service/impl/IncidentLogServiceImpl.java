@@ -47,7 +47,7 @@ public class IncidentLogServiceImpl implements IncidentLogService {
     public List<IncidentTimelineResponseDTO> getIncidentTimeline(Long incidentId) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Incident not found"));
+                        new ResourceNotFoundException("Incidente no encontrado"));
         incidentAccessService.assertCanViewIncident(
                 currentUserService.getCurrentUser(),
                 incident
@@ -63,7 +63,7 @@ public class IncidentLogServiceImpl implements IncidentLogService {
     public IncidentTimelineResponseDTO addAnnotation(Long incidentId, String comment) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Incident not found"));
+                        new ResourceNotFoundException("Incidente no encontrado"));
         User currentUser = currentUserService.getCurrentUser();
         incidentAccessService.assertCanViewIncident(currentUser, incident);
 

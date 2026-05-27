@@ -35,7 +35,7 @@ public class GlobalExceptionHandler {
         ApiErrorResponse error = new ApiErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
                 "INTERNAL_ERROR",
-                "Unexpected error occurred",
+                "Ocurrió un error inesperado",
                 request.getRequestURI()
         );
 

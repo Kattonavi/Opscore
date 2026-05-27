@@ -68,8 +68,8 @@ final class IncidentTransitions {
     static void assertAllowed(IncidentStatus from, IncidentStatus to) {
         if (!isAllowed(from, to)) {
             throw new ConflictException(
-                    "Invalid incident transition: " + from + " → " + to
-                            + ". Current status does not allow this action."
+                    "No se puede cambiar el estado del incidente de " + from + " a " + to
+                            + ". El estado actual no permite esta acción."
             );
         }
     }

@@ -90,7 +90,7 @@ public class IncidentServiceImpl implements IncidentService {
         if (request.getAreaId() != null) {
             area = areaRepository.findById(request.getAreaId())
                     .orElseThrow(() ->
-                            new ResourceNotFoundException("Area not found"));
+                            new ResourceNotFoundException("Área no encontrada"));
         }
 
         Incident incident = Incident.builder()
@@ -174,7 +174,7 @@ public class IncidentServiceImpl implements IncidentService {
     @Override
     public IncidentResponseDTO getIncidentById(Long id) {
         Incident incident = incidentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Incident not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Incidente no encontrado"));
 
         incidentAccessService.assertCanViewIncident(
                 getCurrentAuthenticatedUser(),
@@ -189,7 +189,7 @@ public class IncidentServiceImpl implements IncidentService {
         // 1. Validar que el incidente existe
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Incident with id " + incidentId + " not found"
+                        "Incidente con id " + incidentId + " no encontrado"
                 ));
 
         incidentAccessService.assertCanViewIncident(
@@ -218,7 +218,7 @@ public class IncidentServiceImpl implements IncidentService {
     public IncidentResponseDTO resolveIncident(Long incidentId, String comment) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Incident not found"));
+                        new ResourceNotFoundException("Incidente no encontrado"));
 
         User currentUser = getCurrentAuthenticatedUser();
         incidentAccessService.assertCanResolveIncident(currentUser, incident);
@@ -248,7 +248,7 @@ public class IncidentServiceImpl implements IncidentService {
     public IncidentResponseDTO startIncident(Long incidentId, String comment) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Incident not found"));
+                        new ResourceNotFoundException("Incidente no encontrado"));
 
         User currentUser = getCurrentAuthenticatedUser();
         incidentAccessService.assertCanResolveIncident(currentUser, incident);
@@ -276,7 +276,7 @@ public class IncidentServiceImpl implements IncidentService {
     public IncidentResponseDTO holdIncident(Long incidentId, String comment) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Incident not found"));
+                        new ResourceNotFoundException("Incidente no encontrado"));
 
         User currentUser = getCurrentAuthenticatedUser();
         incidentAccessService.assertCanResolveIncident(currentUser, incident);
@@ -304,7 +304,7 @@ public class IncidentServiceImpl implements IncidentService {
     public IncidentResponseDTO cancelIncident(Long incidentId, String comment) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Incident not found"));
+                        new ResourceNotFoundException("Incidente no encontrado"));
 
         User currentUser = getCurrentAuthenticatedUser();
         incidentAccessService.assertCanCancelIncident(currentUser, incident);
@@ -333,7 +333,7 @@ public class IncidentServiceImpl implements IncidentService {
     public IncidentResponseDTO closeIncident(Long incidentId, String comment) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Incident not found"));
+                        new ResourceNotFoundException("Incidente no encontrado"));
 
         User currentUser = getCurrentAuthenticatedUser();
         incidentAccessService.assertCanCloseIncident(currentUser, incident);

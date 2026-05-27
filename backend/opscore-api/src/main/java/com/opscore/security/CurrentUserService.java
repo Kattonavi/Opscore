@@ -23,11 +23,11 @@ public class CurrentUserService {
         if (authentication == null
                 || !authentication.isAuthenticated()
                 || "anonymousUser".equals(authentication.getName())) {
-            throw new AccessDeniedException("Authentication required");
+            throw new AccessDeniedException("Autenticación requerida");
         }
 
         return userRepository.findByEmail(authentication.getName())
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Current user not found"));
+                        new ResourceNotFoundException("Usuario actual no encontrado"));
     }
 }

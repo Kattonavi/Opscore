@@ -7,13 +7,11 @@ import { useAuthStore } from "@/features/auth/stores/auth-store";
 import { useIncidentsStore } from "@/features/incidents/stores/incidents-store";
 import { CreateIncidentSheet } from "@/features/incidents/components/create-incident-sheet";
 import { CreateUserSheet } from "@/features/users/components/create-user-sheet";
-import { getRoleLabel, getRoleColor, type Role } from "@/lib/rbac";
+import { canCreateIncident, getRoleLabel, getRoleColor, type Role } from "@/lib/rbac";
 import {
   BarChart3,
   TrendingUp,
-  Activity,
   AlertTriangle,
-  RefreshCw,
   Shield,
   Users,
   Plus,
@@ -44,15 +42,8 @@ export default function DashboardPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const [userSheetOpen, setUserSheetOpen] = useState(false);
 
-  const AREA_OPTIONS = [
-    { id: 1, name: "PRODUCTION" },
-    { id: 2, name: "CONTABILITY" },
-    { id: 3, name: "RRHH" },
-    { id: 4, name: "IT" },
-    { id: 5, name: "LOGISTICS" },
-  ];
-
   const role = user?.role as Role | undefined;
+  const allowCreateIncident = canCreateIncident(role);
   const roleLabel = role ? getRoleLabel(role, "es") : "";
   const roleColor = role ? getRoleColor(role) : "";
 
@@ -145,19 +136,18 @@ export default function DashboardPage() {
         return [
           { icon: Shield, label: "dashboard.manageUsers", color: "text-destructive" },
           { icon: Users, label: "nav.usuarios", color: "text-primary" },
-          { icon: Plus, label: "dashboard.createIncident", color: "text-chart-3" },
+          { icon: List, label: "nav.incidentes", color: "text-chart-3" },
           { icon: BarChart3, label: "nav.reportes", color: "text-primary" },
         ];
       case "MANAGER":
         return [
           { icon: BarChart3, label: "dashboard.viewReports", color: "text-chart-4" },
-          { icon: Users, label: "nav.usuarios", color: "text-primary" },
-          { icon: Plus, label: "dashboard.createIncident", color: "text-chart-3" },
+          { icon: List, label: "nav.incidentes", color: "text-chart-3" },
           { icon: List, label: "nav.reportes", color: "text-primary" },
         ];
       case "SUPERVISOR":
         return [
-          { icon: Plus, label: "dashboard.createIncident", color: "text-chart-3" },
+          { icon: List, label: "nav.incidentes", color: "text-chart-3" },
           { icon: BarChart3, label: "nav.reportes", color: "text-primary" },
         ];
       case "TECHNICIAN":
@@ -198,11 +188,13 @@ export default function DashboardPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" onClick={() => setSheetOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" />
-            {t("dashboard.createIncident")}
-          </Button>
-          {(role === "ADMIN" || role === "MANAGER") && (
+          {allowCreateIncident && (
+            <Button size="sm" onClick={() => setSheetOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              {t("dashboard.createIncident")}
+            </Button>
+          )}
+          {role === "ADMIN" && (
             <Button size="sm" variant="outline" onClick={() => setUserSheetOpen(true)}>
               <UserPlus className="mr-1.5 h-4 w-4" />
               {t("users.form.submit")}
@@ -437,9 +429,14 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Create Incident Sheet */}
-      <CreateIncidentSheet open={sheetOpen} onOpenChange={setSheetOpen} />
-      <CreateUserSheet open={userSheetOpen} onOpenChange={setUserSheetOpen} />
+      {/* Create Incident Sheet — OPERATOR only */}
+      {allowCreateIncident && (
+        <CreateIncidentSheet open={sheetOpen} onOpenChange={setSheetOpen} />
+      )}
+      {/* Create User Sheet — ADMIN only */}
+      {role === "ADMIN" && (
+        <CreateUserSheet open={userSheetOpen} onOpenChange={setUserSheetOpen} />
+      )}
     </div>
   );
 }

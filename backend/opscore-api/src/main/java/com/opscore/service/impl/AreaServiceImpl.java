@@ -28,7 +28,7 @@ public class AreaServiceImpl implements AreaService {
     @Override
     public AreaResponseDTO getAreaById(Long id) {
         Area area = areaRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Area not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Área no encontrada con id: " + id));
         return toDto(area);
     }
 

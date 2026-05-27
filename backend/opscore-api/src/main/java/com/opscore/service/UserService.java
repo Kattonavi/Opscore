@@ -42,14 +42,14 @@ public class UserService {
 
         Role role = roleRepository.findById(request.getRoleId())
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Role not found"));
+                        new ResourceNotFoundException("Rol no encontrado"));
 
         Area area = null;
 
         if (request.getAreaId() != null) {
             area = areaRepository.findById(request.getAreaId())
                     .orElseThrow(() ->
-                            new ResourceNotFoundException("Area not found"));
+                            new ResourceNotFoundException("Área no encontrada"));
         }
 
         User user = User.builder()
@@ -131,7 +131,7 @@ public class UserService {
 
         Role role = roleRepository.findById(request.getRoleId())
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Role not found")
+                        new ResourceNotFoundException("Rol no encontrado")
                 );
 
         user.setRole(role);

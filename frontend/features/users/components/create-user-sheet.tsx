@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/select";
 import { useI18n } from "@/components/providers/i18n-provider";
 import { usersApi } from "@/api/user";
+import { areasApi } from "@/api/areas";
+import type { AreaResponseDTO } from "@/api/areas/types";
 import { extractApiError } from "@/lib/api-errors";
 import type { CreateUserRequestDTO } from "@/api/types";
 import { Role, getRoleLabel } from "@/lib/rbac";
@@ -41,12 +43,14 @@ const ROLE_OPTIONS = [
   { id: 5, name: Role.OPERATOR },
 ];
 
-const AREA_OPTIONS = [
+// Áreas de respaldo si la API /areas falla. Deben coincidir con las del backend
+// (ver `AreaSeeder` / `Area` enum): PRODUCTION, CONTABILITY, RRHH, IT, LOGISTICS.
+const FALLBACK_areaOptions = [
   { id: 1, name: "PRODUCTION" },
-  { id: 2, name: "MAINTENANCE" },
-  { id: 3, name: "QUALITY" },
-  { id: 4, name: "LOGISTICS" },
-  { id: 5, name: "ADMINISTRATION" },
+  { id: 2, name: "CONTABILITY" },
+  { id: 3, name: "RRHH" },
+  { id: 4, name: "IT" },
+  { id: 5, name: "LOGISTICS" },
 ];
 
 export function CreateUserSheet({ open, onOpenChange }: CreateUserSheetProps) {
@@ -61,6 +65,31 @@ export function CreateUserSheet({ open, onOpenChange }: CreateUserSheetProps) {
   });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [areaOptions, setAreaOptions] = useState<
+    { id: number; name: string }[]
+  >(FALLBACK_areaOptions);
+
+  // Cargar áreas dinámicamente desde el backend. Si /areas falla,
+  // se conservan las opciones de respaldo declaradas arriba.
+  useEffect(() => {
+    let cancelled = false;
+    areasApi
+      .getAll()
+      .then((areas: AreaResponseDTO[]) => {
+        if (cancelled) return;
+        if (Array.isArray(areas) && areas.length > 0) {
+          setAreaOptions(
+            areas.map((a) => ({ id: a.id, name: a.name })),
+          );
+        }
+      })
+      .catch(() => {
+        // Mantener las áreas de respaldo
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const initialForm = {
     firstName: "",
@@ -220,7 +249,7 @@ export function CreateUserSheet({ open, onOpenChange }: CreateUserSheetProps) {
               >
                 <SelectTrigger>
                   {form.areaId
-                    ? AREA_OPTIONS.find((o) => o.id === form.areaId)?.name ?? t("users.form.noArea")
+                    ? areaOptions.find((o) => o.id === form.areaId)?.name ?? t("users.form.noArea")
                     : t("users.form.noArea")}
                 </SelectTrigger>
                 <SelectPopup>
@@ -229,7 +258,7 @@ export function CreateUserSheet({ open, onOpenChange }: CreateUserSheetProps) {
                       <SelectItemIndicator />
                       <SelectItemText>{t("users.form.noArea")}</SelectItemText>
                     </SelectItem>
-                    {AREA_OPTIONS.map((opt) => (
+                    {areaOptions.map((opt) => (
                       <SelectItem key={opt.id} value={String(opt.id)}>
                         <SelectItemIndicator />
                         <SelectItemText>{opt.name}</SelectItemText>

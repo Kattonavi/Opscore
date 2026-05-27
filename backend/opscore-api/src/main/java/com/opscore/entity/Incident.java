@@ -62,8 +62,16 @@ public class Incident {
     @JoinColumn(name = "area_id")
     private Area area;
 
-    @ManyToOne
-    @JoinColumn(name = "reported_by")
+    // Business rule #1 — un incidente siempre es reportado por un OPERATOR
+    // autenticado; el servicio fija `reportedBy` desde `CurrentUserService`
+    // antes de persistir, así que la columna no puede ser nula.
+    //
+    // MIGRACIÓN: si en producción existen filas con `reported_by IS NULL`,
+    // hay que hacer backfill antes de aplicar `nullable=false`. Por ejemplo:
+    //     UPDATE incidents SET reported_by = <operator_user_id> WHERE reported_by IS NULL;
+    // y recién después correr el esquema con esta validación activa.
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "reported_by", nullable = false)
     private User reportedBy;
 
     @ManyToOne
