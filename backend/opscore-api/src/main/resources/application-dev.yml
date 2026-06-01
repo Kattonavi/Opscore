@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    # Local development defaults — override via environment variables.
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/opscore_db}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:postgres}
+  jpa:
+    show-sql: true
+
+management:
+  endpoint:
+    health:
+      show-details: always

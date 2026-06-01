@@ -205,6 +205,6 @@ The five roles: `ADMIN`, `MANAGER`, `SUPERVISOR`, `TECHNICIAN`, `OPERATOR`.
 
 ## 7. Schema Management
 
-- **Development:** Hibernate `ddl-auto=update`.
-- **Production:** Hibernate `ddl-auto=validate`.
-- **Planned hardening:** introduce Flyway versioned migrations under `backend/opscore-api/src/main/resources/db/migration/` and pin production to `validate` permanently (see [roadmap](development-roadmap.md)).
+- **Flyway owns the schema from M1.** Versioned migrations live under `backend/opscore-api/src/main/resources/db/migration/` (`V1__baseline.sql` onward); schema objects are introduced from M2.
+- **Hibernate `ddl-auto=validate` in every environment** — Hibernate validates the entities against the Flyway-managed schema and never alters it.
+- **Tests** apply the same migrations against a disposable PostgreSQL via Testcontainers, so dev, test, and production share one schema source of truth.

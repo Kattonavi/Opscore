@@ -21,7 +21,7 @@
 
 **Goal:** runnable skeletons for both apps, wired to a database.
 
-- Backend: Spring Boot 4 project, PostgreSQL connection, base config, health endpoint, OpenAPI, Dockerfile.
+- Backend: Spring Boot 4 project, PostgreSQL connection, Flyway baseline migration (schema source of truth, `ddl-auto=validate`), base config, health endpoint, OpenAPI, Dockerfile.
 - Frontend: Next.js 16 project, Tailwind + shadcn/ui, Axios client, i18n provider, Dockerfile.
 - Local orchestration (compose) for backend + db + frontend.
 - CI pipeline: build + lint on every push.
@@ -75,7 +75,7 @@
 
 **Goal:** production readiness.
 
-- Flyway migrations; production `ddl-auto=validate` permanently.
+- Production schema gating verified end-to-end (Flyway has owned the schema since M1; `ddl-auto=validate` in all environments).
 - Centralised, contextual error handling reviewed end-to-end.
 - Optional welcome-email delivery (opt-in via env).
 - Rate limiting / lockout on auth and password endpoints.

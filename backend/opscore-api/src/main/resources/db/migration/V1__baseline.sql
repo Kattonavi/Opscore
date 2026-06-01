@@ -1,0 +1,4 @@
+-- OpsCore baseline migration (M1).
+-- The foundation ships with no schema objects yet; tables are introduced from
+-- M2 onward (roles, areas, users, then incidents/assignments/incident_logs).
+-- This file establishes the Flyway history baseline.
