@@ -32,12 +32,13 @@
 
 **Goal:** users can log in; admins can manage accounts.
 
-- Entities: `roles`, `areas`, `users`. Seed roles, areas, and one user per role.
-- BCrypt hashing; JWT issuance + `JwtFilter`; `POST /auth/login`.
+- Entities: `roles`, `areas`, `users`. Seed the five roles, the baseline areas (Production, Maintenance, Safety, Quality, Logistics), and one user per role (`<role>@opscore.local`); seed passwords come from env vars / a local-only default — never hard-coded.
+- BCrypt hashing; JWT issuance + `JwtFilter`; `POST /auth/login`. JWT v1: access-token only (no refresh), HS256, 24h lifetime, secret from env, claims `userId`/`email`/`role`/`areaId`/`iat`/`exp`.
+- `areaId` validation: required for SUPERVISOR/TECHNICIAN, optional for OPERATOR, nullable for ADMIN/MANAGER.
 - User endpoints: create, list, get, assignable, `/me`, role/status changes, password change/reset.
-- Frontend: login page, session store (Zustand persist), auth interceptor, profile screen, user-admin screens.
+- Frontend: login page, session store (Zustand persist → localStorage), auth interceptor, profile screen, user-admin screens.
 
-**Done when:** all five seeded roles can authenticate; admin can CRUD users; password reset works; profile validation rejects digits.
+**Done when:** all five seeded roles can authenticate; admin can CRUD users; password reset works; profile validation rejects digits; area-requirement validation is enforced.
 
 ## M3 — Incident Reporting
 
@@ -54,12 +55,12 @@
 
 **Goal:** the full incident workflow with traceability.
 
-- Assignment endpoint with active-technician + non-terminal checks; `assignments` history.
-- Lifecycle state machine (single source of truth) + transition endpoints (`start`/`hold`/`resolve`/`close`/`cancel`).
+- Assignment endpoint handling assign **and reassign** (active-technician + non-terminal checks; reassign resets status to `ASSIGNED`); `assignments` history with `previous_assigned_to_id`. SUPERVISOR actions area-scoped.
+- Lifecycle state machine (single source of truth) + transition endpoints (`start`/`hold`/`resume`/`resolve`/`close`/`cancel`), including the false-alarm cancel variant (`isFalseAlarm=true`).
 - `incident_logs` audit timeline; annotations endpoint.
 - Frontend: assignment UI, Kanban board, per-incident timeline, RBAC mirror in `lib/rbac.ts`.
 
-**Done when:** an incident traverses `OPEN → … → CLOSED` and the `CANCELED` branch; every transition is logged with author + timestamp; all seven business rules are enforced and covered by tests.
+**Done when:** an incident traverses `OPEN → ASSIGNED → IN_PROGRESS → ON_HOLD → IN_PROGRESS (resume) → RESOLVED → CLOSED`, plus the `CANCELED` and false-alarm branches; reassignment resets to `ASSIGNED` and is recorded; every transition is logged with author + timestamp; all seven business rules and supervisor area-scoping are enforced and covered by tests.
 
 ## M5 — Dashboards & KPIs
 

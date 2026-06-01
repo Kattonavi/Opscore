@@ -21,14 +21,14 @@
 
 | Layer | Tooling | Scope |
 |---|---|---|
-| **Unit** | JUnit 5, Mockito (backend); Vitest/Jest + Testing Library (frontend) | Pure logic: lifecycle transitions, RBAC helpers, validators, mappers. |
+| **Unit** | JUnit 5, Mockito (backend); Vitest + Testing Library (frontend) | Pure logic: lifecycle transitions, RBAC helpers, validators, mappers. |
 | **Integration / API** | Spring Boot Test + Testcontainers (PostgreSQL); Playwright `api` project | Controllers → services → real database; the authorization contract. |
 | **E2E** | Playwright `ui` project | Critical user journeys through the real frontend + backend. |
 
 ## 3. Backend Testing
 
 ### Unit
-- **Lifecycle:** every legal transition succeeds; every illegal transition is rejected. Terminal states (`CLOSED`, `CANCELED`) accept nothing; `RESOLVED` accepts only `CLOSED`.
+- **Lifecycle:** every legal transition succeeds; every illegal transition is rejected. Covers `resume` (`ON_HOLD → IN_PROGRESS`), reassignment resetting status to `ASSIGNED`, and false-alarm cancellation (`isFalseAlarm=true` → `CANCELED`). Terminal states (`CLOSED`, `CANCELED`) accept nothing; `RESOLVED` accepts only `CLOSED`.
 - **Authorization predicates:** assignee check, area scoping, active-technician check.
 - **Validation:** title 5–100, description 10–500, name regex rejects digits.
 
@@ -50,8 +50,9 @@
 HTTP-only, no browser. Verifies the contract from the outside:
 - Authentication and JWT issuance.
 - Incident creation rules and ignored body fields.
-- Assignment rules (technician-only, terminal-state block, inactive rejection).
-- Full lifecycle path `OPEN → CLOSED` plus the `CANCELED` branch.
+- Assignment rules (technician-only, terminal-state block, inactive rejection) and **reassignment** resetting an `IN_PROGRESS`/`ON_HOLD` incident back to `ASSIGNED`, with a history row capturing the previous assignee.
+- Full lifecycle path `OPEN → ASSIGNED → IN_PROGRESS → ON_HOLD → IN_PROGRESS (resume) → RESOLVED → CLOSED`, plus the `CANCELED` branch and the false-alarm cancel variant.
+- Supervisor area-scoping: assign/close/cancel inside the area succeed; outside the area → `403`.
 - Self-service profile (`PATCH /users/me`) and regex validation.
 - Administrative password reset (`PATCH /users/{userId}/change-password`).
 
@@ -66,8 +67,8 @@ Real browser against the running stack. Representative journeys:
 
 ## 6. Test Data Strategy
 
-- **Deterministic users per role** with stable emails (e.g. `e2e-<role>@opscore.local`), seeded idempotently so re-runs don't accumulate state.
-- Seed passwords are for local/CI/demo only — never reused in production.
+- **Baseline seed accounts** (one per role: `admin@opscore.local`, `manager@opscore.local`, `supervisor@opscore.local`, `technician@opscore.local`, `operator@opscore.local`) per the [Database Model](database-model.md#6-seed-data). E2E suites may additionally bootstrap their own deterministic `e2e-<role>@opscore.local` users idempotently so re-runs don't accumulate state.
+- Seed/test passwords come from environment variables (or a clearly marked local-only default) — never hard-coded in docs and never reused in production.
 - Integration tests spin up a disposable PostgreSQL via Testcontainers; no shared mutable fixture between unrelated tests.
 - Each test creates the minimum state it needs and tolerates pre-existing seed data.
 

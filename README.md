@@ -47,12 +47,13 @@ It targets a recurring problem in plant operations: failures are reported throug
 - **i18n:** Custom provider with JSON locale files (es / en / pt)
 
 ### Quality
+- **Backend tests:** JUnit 5 + Spring Boot Test (+ Testcontainers for integration)
+- **Frontend unit/component tests:** Vitest
 - **E2E / API tests:** Playwright (`api` and `ui` projects)
-- **Backend tests:** JUnit 5 + Spring Boot Test
 
 ## Documentation
 
-The system is fully specified before implementation begins. Start here:
+The system is specified ahead of implementation. Start here:
 
 | Document | Purpose |
 |---|---|
@@ -80,11 +81,11 @@ Opscore/
 
 ## Roles at a Glance
 
-| Role | Create incident | View | Assign | Start / Hold / Resolve | Close / Cancel | User admin |
+| Role | Create incident | View | Assign | Start / Hold / Resume / Resolve | Close / Cancel | User admin |
 |---|---|---|---|---|---|---|
 | **ADMIN** | ❌ | All | ✅ | ❌ | ✅ | ✅ |
 | **MANAGER** | ❌ | All | ✅ | ❌ | ✅ | ❌ |
-| **SUPERVISOR** | ❌ | All | ✅ (own area) | ❌ | ✅ | Password reset (own area) |
+| **SUPERVISOR** | ❌ | All | ✅ (own area) | ❌ | ✅ (own area) | Password reset (own area) |
 | **TECHNICIAN** | ❌ | Assigned to them | ❌ | ✅ (if assigned) | ❌ | ❌ |
 | **OPERATOR** | ✅ | Own reports | ❌ | ❌ | ❌ | ❌ |
 

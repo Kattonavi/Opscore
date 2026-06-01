@@ -20,10 +20,10 @@
 | View all incidents | ✅ | ✅ | ✅ | ❌ | ❌ |
 | View own reported incidents | — | — | — | — | ✅ |
 | View incidents assigned to me | — | — | — | ✅ | — |
-| Assign technician | ✅ | ✅ | ✅ (own area) | ❌ | ❌ |
-| Start / Hold / Resolve | ❌ | ❌ | ❌ | ✅ (if assigned) | ❌ |
-| Close | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Cancel | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Assign / reassign technician | ✅ | ✅ | ✅ (own area) | ❌ | ❌ |
+| Start / Hold / Resume / Resolve | ❌ | ❌ | ❌ | ✅ (if assigned) | ❌ |
+| Close | ✅ | ✅ | ✅ (own area) | ❌ | ❌ |
+| Cancel / mark false alarm | ✅ | ✅ | ✅ (own area) | ❌ | ❌ |
 | Add timeline annotation | ✅ | ✅ | ✅ | ✅ (own) | ✅ (own) |
 | View KPI dashboards | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Create users | ✅ | ❌ | ❌ | ❌ | ❌ |
@@ -44,23 +44,25 @@ These seven rules are the heart of the authorization model and are enforced in t
 4. **Assignment is blocked on RESOLVED, CLOSED, and CANCELED incidents** (enforced on backend and frontend).
 5. **Technicians act only on incidents assigned to them.** Acting on another's incident returns `403` — *"No puedes modificar este incidente porque no está asignado a ti."*
 6. **Administrative roles never perform technician actions.** ADMIN/MANAGER/SUPERVISOR cannot `start`/`hold`/`resolve` as if they were the assignee.
-7. **Supervisors operate area-scoped** for both assignment and administrative password reset.
+7. **Supervisors operate area-scoped for every privileged action** — assign, reassign, close, cancel (including false-alarm), and administrative password reset are permitted only within the supervisor's own area. A SUPERVISOR acting on an incident or user outside their area receives `403`. ADMIN and MANAGER act plant-wide.
 
 ## 4. Lifecycle Authorization
 
 | Transition | Allowed role | Precondition |
 |---|---|---|
 | create → `OPEN` | OPERATOR | — |
-| `OPEN` → `ASSIGNED` | ADMIN / MANAGER / SUPERVISOR | target is active TECHNICIAN |
-| reassign (non-terminal) | ADMIN / MANAGER / SUPERVISOR | not RESOLVED/CLOSED/CANCELED |
+| `OPEN` → `ASSIGNED` (assign) | ADMIN / MANAGER / SUPERVISOR (own area) | target is active TECHNICIAN |
+| reassign → `ASSIGNED` | ADMIN / MANAGER / SUPERVISOR (own area) | source ∈ {`OPEN`,`ASSIGNED`,`IN_PROGRESS`,`ON_HOLD`}; target is active TECHNICIAN |
 | `ASSIGNED` → `IN_PROGRESS` (start) | assigned TECHNICIAN | caller == assignee |
 | `IN_PROGRESS` → `ON_HOLD` (hold) | assigned TECHNICIAN | caller == assignee |
 | `ON_HOLD` → `IN_PROGRESS` (resume) | assigned TECHNICIAN | caller == assignee |
 | `IN_PROGRESS` → `RESOLVED` (resolve) | assigned TECHNICIAN | caller == assignee |
-| `RESOLVED` → `CLOSED` (close) | ADMIN / MANAGER / SUPERVISOR | — |
-| any non-terminal → `CANCELED` (cancel) | ADMIN / MANAGER / SUPERVISOR | — |
+| `RESOLVED` → `CLOSED` (close) | ADMIN / MANAGER / SUPERVISOR (own area) | — |
+| any non-terminal → `CANCELED` (cancel, optional false-alarm) | ADMIN / MANAGER / SUPERVISOR (own area) | — |
 
 `CLOSED` and `CANCELED` are terminal — no further transitions. `RESOLVED` transitions **only** to `CLOSED` (it cannot be reassigned, restarted, or canceled directly).
+
+**Reassignment resets the status to `ASSIGNED`.** When an `IN_PROGRESS` or `ON_HOLD` incident is reassigned, the newly assigned technician must explicitly `start` it again. Every reassignment records an `assignments` history row (with `previousAssignedToId`) and a `REASSIGNED` audit event.
 
 ## 5. Endpoint Authorization
 
@@ -69,13 +71,13 @@ Coarse role gating is declared with `@PreAuthorize` on controllers; fine-grained
 | Endpoint group | Gate |
 |---|---|
 | `POST /incidents` | OPERATOR only |
-| `POST /incidents/{id}/assign` | ADMIN / MANAGER / SUPERVISOR + active-technician + non-terminal checks |
-| `PATCH /incidents/{id}/{start\|hold\|resolve}` | TECHNICIAN + assignee check |
-| `PATCH /incidents/{id}/{close\|cancel}` | ADMIN / MANAGER / SUPERVISOR |
+| `POST /incidents/{id}/assign` (assign + reassign) | ADMIN / MANAGER / SUPERVISOR (own area) + active-technician + non-terminal checks |
+| `PATCH /incidents/{id}/{start\|hold\|resume\|resolve}` | TECHNICIAN + assignee check |
+| `PATCH /incidents/{id}/{close\|cancel}` | ADMIN / MANAGER / SUPERVISOR (own area) |
 | `GET /incidents*` | All, results filtered by role/scope |
 | `POST /users`, `PATCH /users/{id}/{role\|status}` | ADMIN |
 | `PATCH /users/{userId}/change-password` | ADMIN, or SUPERVISOR within area |
-| `GET /dashboard/*` | ADMIN / MANAGER / SUPERVISOR |
+| `GET /dashboard/*` | ADMIN / MANAGER / SUPERVISOR (OPERATOR/TECHNICIAN → `403`) |
 
 ## 6. Data Visibility
 

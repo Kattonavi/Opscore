@@ -76,13 +76,22 @@ HTTP ─▶ Controller ─▶ Service ─▶ Repository ─▶ Database
 ```
 1. POST /auth/login { email, password }
 2. Backend verifies BCrypt hash, checks user is active
-3. Backend returns a signed JWT (subject = user, claims = role, expiry)
-4. Frontend stores the token (Zustand persist) and attaches it:
+3. Backend returns a signed JWT (claims: `sub`/`userId`, `email`, `role`, `areaId`, `iat`, `exp`)
+4. Frontend stores the token (Zustand persist → localStorage) and attaches it:
        Authorization: Bearer <token>
 5. JwtFilter validates signature + expiry on every request and sets the principal
 6. @PreAuthorize + service rules decide if the action is allowed
 ```
 
+### JWT decisions (v1)
+- **Access token only — no refresh token in v1.** Clients re-authenticate when the 24-hour token expires.
+- **Algorithm:** HS256. **Secret:** environment variable only (never committed or logged).
+- **Lifetime:** 24 hours (development/demo value).
+- **Claims:** `sub`/`userId`, `email`, `role`, `areaId`, `iat`, `exp`.
+- **Frontend storage (v1 demo):** Zustand `persist` → `localStorage`. **Tradeoff:** JavaScript-readable, so exposed to XSS; accepted for the demo and revisited in hardening.
+- **Future hardening:** `httpOnly` + `Secure` cookies and refresh-token rotation.
+
+Other auth properties:
 - Tokens are **stateless** — no server-side session store.
 - Passwords are hashed with **BCrypt**; plaintext never persisted or logged.
 - CORS origins come from an environment allow-list (`CORS_ALLOWED_ORIGINS`).

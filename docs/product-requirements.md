@@ -85,18 +85,20 @@ OpsCore digitizes this flow into a structured, role-based, auditable system.
 - FR-2.4 New incidents start in `OPEN`.
 
 ### FR-3 Assignment
-- FR-3.1 `ADMIN`, `MANAGER`, and `SUPERVISOR` can assign incidents. Supervisors are scoped to their own area.
+- FR-3.1 `ADMIN`, `MANAGER`, and `SUPERVISOR` can assign incidents. Supervisors are scoped to their own area; ADMIN and MANAGER act plant-wide.
 - FR-3.2 Assignment targets only **active** `TECHNICIAN` accounts.
-- FR-3.3 Assignment is blocked on `RESOLVED`, `CLOSED`, and `CANCELED` incidents.
-- FR-3.4 Assigning moves `OPEN → ASSIGNED`; reassigning is permitted on non-terminal incidents and records the supervisor.
-- FR-3.5 Every assignment is recorded in assignment history.
+- FR-3.3 Assignment is blocked on `RESOLVED`, `CLOSED`, and `CANCELED` incidents (allowed source states: `OPEN`, `ASSIGNED`, `IN_PROGRESS`, `ON_HOLD`).
+- FR-3.4 The same action performs first assignment and reassignment. From `OPEN`/`ASSIGNED` the status becomes/remains `ASSIGNED`; from `IN_PROGRESS`/`ON_HOLD` it **resets to `ASSIGNED`**, so the newly assigned technician must explicitly `start` the work again.
+- FR-3.5 Every (re)assignment records an assignment-history row (including the previous assignee) and an audit timeline event (`ASSIGNED`/`REASSIGNED`).
+- FR-3.6 The incident's `supervisorId` is set **only** when the acting user is a `SUPERVISOR`; for `ADMIN`/`MANAGER` it stays `null`. Assignment accountability comes primarily from the assignment history and audit timeline, not from `supervisorId`.
 
 ### FR-4 Lifecycle
 - FR-4.1 The state machine is the single source of truth and is enforced on both backend and frontend.
-- FR-4.2 Only the **assigned** technician may `start`, `hold`, and `resolve`.
-- FR-4.3 `ADMIN`/`MANAGER`/`SUPERVISOR` may `close` and `cancel`; they never perform technician actions.
+- FR-4.2 Only the **assigned** technician may `start`, `hold`, `resume` (`ON_HOLD → IN_PROGRESS`), and `resolve`.
+- FR-4.3 `ADMIN`/`MANAGER`/`SUPERVISOR` may `close` and `cancel`; they never perform technician actions. SUPERVISOR is area-scoped for both; ADMIN/MANAGER act plant-wide.
 - FR-4.4 `CLOSED` and `CANCELED` are terminal. `RESOLVED` transitions only to `CLOSED`.
 - FR-4.5 `resolvedAt` is stamped on resolution.
+- FR-4.6 A **false alarm** is a cancellation variant: `ADMIN`, `MANAGER`, or the area-scoped `SUPERVISOR` cancels with `isFalseAlarm=true`, which transitions the incident to `CANCELED`, flags it as a non-event, and records an audit event.
 
 ### FR-5 Audit Timeline
 - FR-5.1 Every transition (created, assigned, reassigned, started, put on hold, resolved, closed, canceled) is logged with action, author, and timestamp.
@@ -107,10 +109,16 @@ OpsCore digitizes this flow into a structured, role-based, auditable system.
 - FR-6.1 `ADMIN` can create users, change roles, and toggle active status.
 - FR-6.2 `ADMIN` (any user) and `SUPERVISOR` (own area) can administratively reset passwords.
 - FR-6.3 Passwords are stored as BCrypt hashes and never returned in any response.
+- FR-6.4 `areaId` is **required** when creating or updating a `SUPERVISOR` or `TECHNICIAN`, **optional (recommended)** for an `OPERATOR`, and **nullable** for `ADMIN`/`MANAGER`. Validated at the service layer.
 
 ### FR-7 Dashboards & KPIs
 - FR-7.1 Provide status distribution, priority distribution, and per-area counts.
-- FR-7.2 Dashboards are filtered by the caller's role and scope.
+- FR-7.2 Dashboards are available to `ADMIN`, `MANAGER`, and `SUPERVISOR` only, scoped by role (a supervisor's figures reflect their area). In v1, `OPERATOR` and `TECHNICIAN` have no dashboard access and receive `403`.
+
+### FR-8 Welcome Email (optional / secondary)
+- FR-8.1 On user creation, the system **may** send a welcome email. This is an **optional, secondary** capability, not required for M1/M2.
+- FR-8.2 Email delivery is opt-in via SMTP configuration. When SMTP is disabled, user creation still succeeds — a failed or skipped email **never** blocks account creation.
+- FR-8.3 The welcome email never contains the user's password or other sensitive data.
 
 ## 6. Non-Functional Requirements
 

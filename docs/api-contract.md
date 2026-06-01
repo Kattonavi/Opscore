@@ -10,7 +10,7 @@
 | **Format** | JSON request and response bodies (`application/json`). |
 | **Auth** | `Authorization: Bearer <jwt>` on every endpoint except `POST /auth/login`. |
 | **IDs** | 64-bit integers (`Long`). |
-| **Timestamps** | ISO-8601 (`2026-06-01T14:32:00`). |
+| **Timestamps** | ISO-8601 in **UTC** (`2026-06-01T14:32:00Z`). All times are persisted as UTC (`TIMESTAMPTZ`). |
 | **Enums** | Serialized as their string name (see [Database Model §3](database-model.md#3-enumerations)). |
 | **Validation** | Bean Validation; failures return `400` with field messages. |
 
@@ -57,6 +57,18 @@ Public. Exchanges credentials for a JWT.
 ```
 **Errors:** `401` invalid credentials or inactive account.
 
+### JWT (v1)
+
+| Aspect | Decision (v1) |
+|---|---|
+| **Token type** | Access token only. **No refresh token in v1** — clients re-authenticate when the token expires. |
+| **Lifetime** | 24 hours (development/demo value; `expiresIn` is seconds). |
+| **Algorithm** | HS256. |
+| **Secret** | Supplied via environment variable only; never committed or logged. |
+| **Claims** | `sub`/`userId`, `email`, `role`, `areaId`, `iat` (issued-at), `exp` (expires-at). |
+| **Frontend storage (v1 demo)** | Zustand `persist` → `localStorage`. **Tradeoff:** readable by JavaScript, so vulnerable to XSS; acceptable for the demo, mitigated by standard output encoding and dependency hygiene. |
+| **Future hardening** | Move to `httpOnly` + `Secure` cookies and introduce refresh-token rotation. |
+
 ## 4. Incidents
 
 | Method & Path | Roles | Description |
@@ -68,12 +80,15 @@ Public. Exchanges credentials for a JWT.
 | `GET /incidents/{id}/assignments` | All (scoped) | Assignment history. |
 | `GET /incidents/{id}/timeline` | All (scoped) | Audit timeline. |
 | `POST /incidents/{id}/annotations` | All (scoped) | Add a timeline comment. |
-| `POST /incidents/{id}/assign` | ADMIN, MANAGER, SUPERVISOR | Assign an active technician. |
+| `POST /incidents/{id}/assign` | ADMIN, MANAGER, SUPERVISOR (own area) | Assign **or reassign** an active technician. |
 | `PATCH /incidents/{id}/start` | Assigned TECHNICIAN | `ASSIGNED → IN_PROGRESS`. |
 | `PATCH /incidents/{id}/hold` | Assigned TECHNICIAN | `IN_PROGRESS → ON_HOLD`. |
+| `PATCH /incidents/{id}/resume` | Assigned TECHNICIAN | `ON_HOLD → IN_PROGRESS`. |
 | `PATCH /incidents/{id}/resolve` | Assigned TECHNICIAN | `IN_PROGRESS → RESOLVED`. |
-| `PATCH /incidents/{id}/close` | ADMIN, MANAGER, SUPERVISOR | `RESOLVED → CLOSED`. |
-| `PATCH /incidents/{id}/cancel` | ADMIN, MANAGER, SUPERVISOR | `→ CANCELED` (from non-terminal states). |
+| `PATCH /incidents/{id}/close` | ADMIN, MANAGER, SUPERVISOR (own area) | `RESOLVED → CLOSED`. |
+| `PATCH /incidents/{id}/cancel` | ADMIN, MANAGER, SUPERVISOR (own area) | `→ CANCELED` (from any non-terminal state); supports false-alarm. |
+
+> SUPERVISOR is **area-scoped**: assign/reassign, close, and cancel are permitted only for incidents in the supervisor's own area. ADMIN and MANAGER act plant-wide.
 
 ### `POST /incidents` — request
 ```json
@@ -106,22 +121,44 @@ Public. Exchanges credentials for a JWT.
   "assignedToName": null,
   "supervisorId": null,
   "supervisorName": null,
-  "createdAt": "2026-06-01T14:32:00",
-  "updatedAt": "2026-06-01T14:32:00"
+  "createdAt": "2026-06-01T14:32:00Z",
+  "updatedAt": "2026-06-01T14:32:00Z",
+  "resolvedAt": null,
+  "updatedById": null,
+  "resolvedById": null
 }
 ```
 
-### `POST /incidents/{id}/assign` — request
+Actor references are exposed as IDs (with display names where helpful). Passwords and other sensitive user fields are never included.
+
+### `POST /incidents/{id}/assign` — request (assign **and** reassign)
 ```json
-{ "assignedToId": 15 }
+{ "assignedToId": 15, "comment": "Turno noche" }
 ```
-**Errors:** `409` if target is not an active `TECHNICIAN`; `409` if the incident is `RESOLVED`/`CLOSED`/`CANCELED`.
+The same endpoint handles the first assignment and every reassignment.
+
+- **Allowed source states:** `OPEN`, `ASSIGNED`, `IN_PROGRESS`, `ON_HOLD`.
+- **Blocked source states:** `RESOLVED`, `CLOSED`, `CANCELED`.
+- **Resulting status:**
+  - From `OPEN` or `ASSIGNED` → `ASSIGNED`.
+  - From `IN_PROGRESS` or `ON_HOLD` → `ASSIGNED` — the newly assigned technician must explicitly `start` the work again.
+- Every (re)assignment writes an `assignments` history row (capturing `previousAssignedToId`) **and** an audit timeline event (`ASSIGNED` or `REASSIGNED`).
+- `supervisorId` on the incident is set only when the assigning user is a `SUPERVISOR`; for ADMIN/MANAGER it stays `null`.
+
+**Errors:** `409` if the target is not an active `TECHNICIAN`; `409` if the incident is `RESOLVED`/`CLOSED`/`CANCELED`; `403` if a SUPERVISOR targets an incident outside their area.
 
 ### Lifecycle action requests
-`start` / `hold` / `resolve` / `close` / `cancel` accept an optional comment recorded on the timeline:
+`start` / `hold` / `resume` / `resolve` / `close` / `cancel` accept an optional comment recorded on the timeline:
 ```json
 { "comment": "Repuesto reemplazado, máquina operativa." }
 ```
+
+#### `PATCH /incidents/{id}/cancel` — false-alarm variant
+To cancel an incident as a non-event, set `isFalseAlarm`:
+```json
+{ "isFalseAlarm": true, "comment": "Sensor mal calibrado, sin falla real." }
+```
+This transitions the incident to `CANCELED`, sets `is_false_alarm = true`, and records a `CANCELED` audit event. Only ADMIN, MANAGER, or the area-scoped SUPERVISOR may cancel / mark a false alarm.
 
 ### `POST /incidents/{id}/annotations` — request
 ```json
@@ -136,9 +173,29 @@ Public. Exchanges credentials for a JWT.
   "comment": null,
   "userId": 15,
   "userName": "Luis Técnico",
-  "createdAt": "2026-06-01T15:10:00"
+  "createdAt": "2026-06-01T15:10:00Z"
 }
 ```
+
+### Assignment history shape — `GET /incidents/{id}/assignments`
+Returns assignment records newest-first.
+```json
+[
+  {
+    "id": 12,
+    "incidentId": 42,
+    "assignedToId": 15,
+    "assignedToName": "Luis Técnico",
+    "assignedById": 3,
+    "assignedByName": "Sara Supervisora",
+    "previousAssignedToId": 9,
+    "previousAssignedToName": "Marco Técnico",
+    "assignedAt": "2026-06-01T15:05:00Z",
+    "comment": "Reasignado por carga de trabajo"
+  }
+]
+```
+`previousAssignedToId` / `previousAssignedToName` are `null` for the first assignment.
 
 ## 5. Users
 
@@ -200,6 +257,8 @@ Public. Exchanges credentials for a JWT.
 ```json
 [ { "status": "OPEN", "count": 12 }, { "status": "IN_PROGRESS", "count": 5 } ]
 ```
+
+> In v1, `OPERATOR` and `TECHNICIAN` have no dashboard access and receive `403` on these endpoints. Results are scoped by role (SUPERVISOR figures reflect their area).
 
 ## 8. Operational
 
